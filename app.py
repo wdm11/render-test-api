@@ -24,23 +24,45 @@ def ping():
     return {"status": "ping ok"}
 
 @app.get("/games")
-def games(league: str):
-    return {
-        "games": [
-            {"id": "game1", "away": "Oklahoma", "home": "Alabama"}
-        ]
-    }
+def get_games(league: str):
+    # Normalize league input
+    league = league.upper()
+    if league not in SPORT_MAP:
+        return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
 
-API_KEY = os.getenv("ODDS_API_KEY")
+    sport = SPORT_MAP[league]
 
-SPORT_MAP = {
-    "NFL": "americanfootball_nfl",
-    "NCAAF": "americanfootball_ncaaf",
-    "NCAAB": "basketball_ncaab",
-    "NHL": "icehockey_nhl"
-}
+    # Call Odds API
+    try:
+        r = requests.get(
+            f"{BASE_URL}/{sport}/odds",
+            params={
+                "apiKey": API_KEY,
+                "regions": "us",
+                "markets": "h2h,spreads,totals",
+                "oddsFormat": "american"
+            },
+            timeout=10
+        )
+        r.raise_for_status()
+    except requests.RequestException as e:
+        return {"error": "Failed to fetch odds from API", "details": str(e)}
 
-BASE_URL = "https://api.the-odds-api.com/v4/sports"
+    games = r.json()
+    if not games:
+        return {"error": "No games returned from Odds API for this league"}
+
+    # Build simple list for Shortcut
+    game_list = []
+    for g in games:
+        game_list.append({
+            "id": g.get("id"),
+            "away": g.get("away_team"),
+            "home": g.get("home_team")
+        })
+
+    return {"games": game_list}
+
 
 @app.get("/best-lines")
 def best_lines(league: str, game_id: str):
