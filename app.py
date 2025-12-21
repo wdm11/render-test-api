@@ -1,41 +1,39 @@
+import os
+import requests
 from fastapi import FastAPI
 
 app = FastAPI()
 
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
+API_KEY = os.getenv("ODDS_API_KEY")
+
+LEAGUES = {
+    "NFL": "americanfootball_nfl",
+    "NCAAF": "americanfootball_ncaaf",
+    "NCAAB": "basketball_ncaab",
+    "NHL": "icehockey_nhl"
+}
+
+BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 
 @app.get("/games")
 def get_games(league: str):
-    return {
-        "games": [
-            {"id": "game1", "away": "Oklahoma", "home": "Alabama"},
-            {"id": "game2", "away": "Texas", "home": "Georgia"}
-        ]
-    }
-
-
-@app.get("/best-lines")
-def best_lines(league: str, game_id: str):
-    return {
-        "game_id": game_id,
-        "league": league,
-        "best_lines": {
-            "spread": {
-                "team": "Alabama",
-                "line": "-6.5",
-                "book": "DraftKings"
-            },
-            "moneyline": {
-                "team": "Oklahoma",
-                "odds": "+220",
-                "book": "FanDuel"
-            },
-            "total": {
-                "line": "O 54.5",
-                "book": "BetMGM"
-            }
+    sport = LEAGUES.get(league)
+    r = requests.get(
+        f"{BASE_URL}/{sport}/odds",
+        params={
+            "apiKey": API_KEY,
+            "regions": "us",
+            "markets": "h2h,spreads,totals"
         }
-    }
+    )
+
+    games = []
+    for g in r.json():
+        games.append({
+            "id": g["id"],
+            "away": g["away_team"],
+            "home": g["home_team"]
+        })
+
+    return {"games": games}
