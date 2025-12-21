@@ -15,6 +15,14 @@ SPORT_MAP = {
 
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
+@app.get("/debug-league")
+def debug_league(league: str):
+    return {
+        "raw": league,
+        "len": len(league),
+        "chars": [c for c in league]
+    }
+    
 @app.get("/")
 def root():
     return {"status": "root ok"}
