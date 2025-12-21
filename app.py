@@ -1,6 +1,4 @@
 from fastapi import FastAPI
-import os
-import requests
 
 app = FastAPI()
 
@@ -9,18 +7,35 @@ def ping():
     return {"status": "ok"}
 
 
-LEAGUES = {
-    "NFL": "americanfootball_nfl",
-    "NCAAF": "americanfootball_ncaaf",
-    "NCAAB": "basketball_ncaab",
-    "NHL": "icehockey_nhl"
-}
-
 @app.get("/games")
 def get_games(league: str):
     return {
         "games": [
-            {"id": "test1", "away": "Oklahoma", "home": "Alabama"},
-            {"id": "test2", "away": "Texas", "home": "Georgia"}
+            {"id": "game1", "away": "Oklahoma", "home": "Alabama"},
+            {"id": "game2", "away": "Texas", "home": "Georgia"}
         ]
+    }
+
+
+@app.get("/best-lines")
+def best_lines(league: str, game_id: str):
+    return {
+        "game_id": game_id,
+        "league": league,
+        "best_lines": {
+            "spread": {
+                "team": "Alabama",
+                "line": "-6.5",
+                "book": "DraftKings"
+            },
+            "moneyline": {
+                "team": "Oklahoma",
+                "odds": "+220",
+                "book": "FanDuel"
+            },
+            "total": {
+                "line": "O 54.5",
+                "book": "BetMGM"
+            }
+        }
     }
