@@ -26,7 +26,7 @@ def ping():
 @app.get("/games")
 def get_games(league: str):
     # Normalize league input
-    league = league.upper()
+    league = league.strip().upper()
     if league not in SPORT_MAP:
         return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
 
@@ -67,7 +67,7 @@ def get_games(league: str):
 @app.get("/best-lines")
 def best_lines(league: str, game_id: str):
     # Normalize league input
-    league = league.upper()
+    league = league.strip().upper()
     if league not in SPORT_MAP:
         return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
 
