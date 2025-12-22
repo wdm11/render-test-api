@@ -73,6 +73,7 @@ def get_games(league: str):
 
 @app.get("/best-lines")
 def best_lines(league: str, game_id: str):
+    league = league.strip().upper()
     # Fetch data from Odds API
     url = f"https://api.the-odds-api.com/v4/sports/{league}/odds?apiKey=YOUR_KEY&regions=us&markets=spreads,h2h,totals&eventIds={game_id}"
     resp = requests.get(url)
