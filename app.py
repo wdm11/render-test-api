@@ -206,6 +206,7 @@ teams = {
     "away": game.get("away_team")
 }
 
+
 return {
     "game_id": game_id,
     "league": league,
