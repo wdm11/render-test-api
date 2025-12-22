@@ -201,7 +201,11 @@ def best_lines(league: str, game_id: str):
                             }
 
     return {
-        "game_id": game_id,
-        "league": league,
-        "best_lines": best
-    }
+    "game_id": game_id,
+    "league": league,
+    "teams": {
+        "home": game.get("home_team"),
+        "away": game.get("away_team")
+    },
+    "best_lines": best
+}
