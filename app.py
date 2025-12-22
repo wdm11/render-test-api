@@ -15,6 +15,25 @@ SPORT_MAP = {
 
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
+ALLOWED_BOOKS = {
+    "DraftKings": {
+        "key": "draftkings",
+        "deeplink": "draftkings://sportsbook"
+    },
+    "FanDuel": {
+        "key": "fanduel",
+        "deeplink": "fanduel://sportsbook"
+    },
+    "BetMGM": {
+        "key": "betmgm",
+        "deeplink": "betmgm://"
+    },
+    "Caesars": {
+        "key": "caesars",
+        "deeplink": "caesars://"
+    }
+}
+
 @app.get("/debug-league")
 def debug_league(league: str):
     return {
@@ -118,6 +137,9 @@ def best_lines(league: str, game_id: str):
     # Iterate safely through bookmakers and markets
     for book in game.get("bookmakers", []):
         book_title = book.get("title")
+
+        if book_title not in ALLOWED_BOOKS:
+            continue
 
         for market in book.get("markets", []):
             key = market.get("key")
