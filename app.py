@@ -145,7 +145,7 @@ def best_lines(league: str, game_id: str):
             key = market.get("key")
             outcomes = market.get("outcomes", [])
 
-            # -------- SPREADS (best per team) --------
+            # -------- SPREADS --------
             if key == "spreads":
                 for outcome in outcomes:
                     team = outcome.get("name")
@@ -160,7 +160,7 @@ def best_lines(league: str, game_id: str):
                             "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
 
-            # -------- MONEYLINES (best per team) --------
+            # -------- MONEYLINES --------
             elif key == "h2h":
                 for outcome in outcomes:
                     team = outcome.get("name")
@@ -173,24 +173,21 @@ def best_lines(league: str, game_id: str):
                             "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
 
-            # -------- TOTALS (best over & under) --------
+            # -------- TOTALS --------
             elif key == "totals":
                 for outcome in outcomes:
                     side = outcome.get("name")  # Over / Under
                     point = outcome.get("point")
                     price = outcome.get("price")
 
-                    # Best OVER → lowest total
                     if side == "Over":
                         if not best["total"]["over"] or point < best["total"]["over"]["point"]:
                             best["total"]["over"] = {
-                                 "point": point,
-                                 "price": price,
-                                 "book": book_title,
-                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
+                                "point": point,
+                                "price": price,
+                                "book": book_title,
+                                "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
-
-                    # Best UNDER → highest total
                     elif side == "Under":
                         if not best["total"]["under"] or point > best["total"]["under"]["point"]:
                             best["total"]["under"] = {
@@ -200,16 +197,16 @@ def best_lines(league: str, game_id: str):
                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
 
-# At the very end of the endpoint, before return
-teams = {
-    "home": game.get("home_team"),
-    "away": game.get("away_team")
-}
+    # -------- ADD TEAMS --------
+    teams = {
+        "home": game.get("home_team"),
+        "away": game.get("away_team")
+    }
 
-
-return {
-    "game_id": game_id,
-    "league": league,
-    "teams": teams,
-    "best_lines": best
-}
+    # -------- RETURN RESPONSE --------
+    return {
+        "game_id": game_id,
+        "league": league,
+        "teams": teams,
+        "best_lines": best
+    }
