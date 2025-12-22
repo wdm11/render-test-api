@@ -200,12 +200,15 @@ def best_lines(league: str, game_id: str):
                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
 
-    return {
+# At the very end of the endpoint, before return
+teams = {
+    "home": game.get("home_team"),
+    "away": game.get("away_team")
+}
+
+return {
     "game_id": game_id,
     "league": league,
-    "teams": {
-        "home": game.get("home_team"),
-        "away": game.get("away_team")
-    },
+    "teams": teams,
     "best_lines": best
 }
