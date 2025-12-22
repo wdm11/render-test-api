@@ -71,78 +71,49 @@ def get_games(league: str):
 
     return {"games": game_list}
 
-
 @app.get("/best-lines")
 def best_lines(league: str, game_id: str):
-    # Normalize league input
-    league = league.strip().upper()
-    if league not in SPORT_MAP:
-        return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
+    # Fetch data from Odds API
+    url = f"https://api.the-odds-api.com/v4/sports/{league}/odds?apiKey=YOUR_KEY&regions=us&markets=spreads,h2h,totals&eventIds={game_id}"
+    resp = requests.get(url)
+    data = resp.json()
+    game = data[0]  # Assuming 1 game per id
 
-    sport = SPORT_MAP[league]
+    best_lines = {
+        "spread": {},
+        "moneyline": {},
+        "total": {}
+    }
 
-    # Call Odds API
-    try:
-        r = requests.get(
-            f"{BASE_URL}/{sport}/odds",
-            params={
-                "apiKey": API_KEY,
-                "regions": "us",
-                "markets": "spreads,h2h,totals",
-                "oddsFormat": "american"
-            },
-            timeout=10
-        )
-        r.raise_for_status()
-    except requests.RequestException as e:
-        return {"error": "Failed to fetch odds from API", "details": str(e)}
+    # Loop through bookmakers
+    for book in game["bookmakers"]:
+        for market in book["markets"]:
+            if market["key"] == "spreads":
+                for outcome in market["outcomes"]:
+                    team = outcome["name"]
+                    point = outcome["point"]
+                    # Update best spread
+                    if team not in best_lines["spread"] or abs(point) < abs(best_lines["spread"][team]["point"]):
+                        best_lines["spread"][team] = {"point": point, "book": book["title"]}
 
-    games = r.json()
-    if not games:
-        return {"error": "No games returned from Odds API for this league"}
+            elif market["key"] == "h2h":
+                for outcome in market["outcomes"]:
+                    team = outcome["name"]
+                    price = outcome["price"]
+                    if team not in best_lines["moneyline"] or price > best_lines["moneyline"][team]["price"]:
+                        best_lines["moneyline"][team] = {"price": price, "book": book["title"]}
 
-    # Find the requested game
-    game = next((g for g in games if g.get("id") == game_id), None)
-    if not game:
-        return {"error": f"Game ID '{game_id}' not found in Odds API response"}
+            elif market["key"] == "totals":
+                for outcome in market["outcomes"]:
+                    side = outcome["name"]  # "Over" or "Under"
+                    line = outcome["point"]
+                    # Over: choose lowest
+                    if side == "Over":
+                        if "Over" not in best_lines["total"] or line < best_lines["total"]["Over"]["line"]:
+                            best_lines["total"]["Over"] = {"line": line, "book": book["title"]}
+                    # Under: choose highest
+                    if side == "Under":
+                        if "Under" not in best_lines["total"] or line > best_lines["total"]["Under"]["line"]:
+                            best_lines["total"]["Under"] = {"line": line, "book": book["title"]}
 
-    # Initialize best lines container
-    best = {"spread": None, "moneyline": None, "total": None}
-
-    # Iterate safely through bookmakers and markets
-    for book in game.get("bookmakers", []):
-        book_title = book.get("title")
-        for market in book.get("markets", []):
-            key = market.get("key")
-            outcomes = market.get("outcomes", [])
-
-            if key == "spreads":
-                for outcome in outcomes:
-                    # Pick the first spread (or enhance logic later)
-                    if not best["spread"]:
-                        best["spread"] = {
-                            "team": outcome.get("name"),
-                            "point": outcome.get("point"),
-                            "price": outcome.get("price"),
-                            "book": book_title
-                        }
-
-            if key == "h2h":
-                for outcome in outcomes:
-                    if not best["moneyline"]:
-                        best["moneyline"] = {
-                            "team": outcome.get("name"),
-                            "price": outcome.get("price"),
-                            "book": book_title
-                        }
-
-            if key == "totals":
-                for outcome in outcomes:
-                    if not best["total"]:
-                        best["total"] = {
-                            "line": f"{outcome.get('name')} {outcome.get('point')}",
-                            "price": outcome.get("price"),
-                            "book": book_title
-                        }
-
-    return {"game_id": game_id, "league": league, "best_lines": best}
+    return {"best_lines": best_lines}
