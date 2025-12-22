@@ -156,7 +156,8 @@ def best_lines(league: str, game_id: str):
                         best["spread"][team] = {
                             "point": point,
                             "price": price,
-                            "book": book_title
+                            "book": book_title,
+                            "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
 
             # -------- MONEYLINES (best per team) --------
@@ -168,7 +169,8 @@ def best_lines(league: str, game_id: str):
                     if team not in best["moneyline"] or price > best["moneyline"][team]["price"]:
                         best["moneyline"][team] = {
                             "price": price,
-                            "book": book_title
+                            "book": book_title,
+                            "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
 
             # -------- TOTALS (best over & under) --------
@@ -182,9 +184,10 @@ def best_lines(league: str, game_id: str):
                     if side == "Over":
                         if not best["total"]["over"] or point < best["total"]["over"]["point"]:
                             best["total"]["over"] = {
-                                "point": point,
-                                "price": price,
-                                "book": book_title
+                                 "point": point,
+                                 "price": price,
+                                 "book": book_title,
+                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
 
                     # Best UNDER → highest total
@@ -193,7 +196,8 @@ def best_lines(league: str, game_id: str):
                             best["total"]["under"] = {
                                 "point": point,
                                 "price": price,
-                                "book": book_title
+                                "book": book_title,
+                                "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
 
     return {
