@@ -26,11 +26,11 @@ ALLOWED_BOOKS = {
     },
     "BetMGM": {
         "key": "betmgm",
-        "deeplink": "betmgm://"
+        "deeplink": "betmgm://sports"
     },
     "Caesars": {
         "key": "caesars",
-        "deeplink": "caesars://"
+        "deeplink": "caesars://sportsbook"
     }
 }
 
