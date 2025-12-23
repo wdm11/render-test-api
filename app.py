@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import os
 import requests
+from statistics import mean
 
 app = FastAPI()
 
@@ -148,7 +149,16 @@ def best_lines(league: str, game_id: str):
             "under": None
         }
     }
-
+    
+    consensus = {
+    "spread": {},
+    "moneyline": {},
+    "total": {
+        "over": [],
+        "under": []
+    }
+    }
+    
     # Iterate safely through bookmakers and markets
     for book in game.get("bookmakers", []):
         book_title = book.get("title")
@@ -174,6 +184,7 @@ def best_lines(league: str, game_id: str):
                             "book": book_title,
                             "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
+                         consensus["spread"].setdefault(team, []).append(point)
 
             # -------- MONEYLINES --------
             elif key == "h2h":
@@ -187,6 +198,7 @@ def best_lines(league: str, game_id: str):
                             "book": book_title,
                             "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
+                        consensus["moneyline"].setdefault(team, []).append(price)
 
             # -------- TOTALS --------
             elif key == "totals":
@@ -203,6 +215,7 @@ def best_lines(league: str, game_id: str):
                                 "book": book_title,
                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
+                             consensus["total"]["over"].append(point)
                     elif side == "Under":
                         if not best["total"]["under"] or point > best["total"]["under"]["point"]:
                             best["total"]["under"] = {
@@ -211,6 +224,7 @@ def best_lines(league: str, game_id: str):
                                 "book": book_title,
                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
+                             consensus["total"]["under"].append(point)
 
     # -------- ADD TEAMS --------
     teams = {
@@ -218,10 +232,33 @@ def best_lines(league: str, game_id: str):
         "away": game.get("away_team")
     }
 
+edges = {}
+
+# Spread edges
+edges["spread"] = {}
+for team, best_spread in best["spread"].items():
+    avg = mean(consensus["spread"].get(team, []))
+    edges["spread"][team] = round(best_spread["point"] - avg, 2)
+
+# Moneyline edges (cents)
+edges["moneyline"] = {}
+for team, best_ml in best["moneyline"].items():
+    avg = mean(consensus["moneyline"].get(team, []))
+    edges["moneyline"][team] = int(best_ml["price"] - avg)
+
+# Totals
+edges["total"] = {
+    "over": round(best["total"]["over"]["point"] - mean(consensus["total"]["over"]), 2)
+    if best["total"]["over"] else None,
+    "under": round(best["total"]["under"]["point"] - mean(consensus["total"]["under"]), 2)
+    if best["total"]["under"] else None
+}
+
     # -------- RETURN RESPONSE --------
     return {
         "game_id": game_id,
         "league": league,
         "teams": teams,
         "best_lines": best
+        "edges": edges
     }
