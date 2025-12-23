@@ -108,14 +108,12 @@ def get_games(league: str):
 
 @app.get("/best-lines")
 def best_lines(league: str, game_id: str):
-    # Normalize league input
     league = league.upper()
     if league not in SPORT_MAP:
-        return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
+        return {"error": f"Invalid league '{league}'"}
 
     sport = SPORT_MAP[league]
 
-    # Call Odds API
     try:
         r = requests.get(
             f"{BASE_URL}/{sport}/odds",
@@ -129,53 +127,40 @@ def best_lines(league: str, game_id: str):
         )
         r.raise_for_status()
     except requests.RequestException as e:
-        return {"error": "Failed to fetch odds from API", "details": str(e)}
+        return {"error": "Odds API error", "details": str(e)}
 
     games = r.json()
-    if not games:
-        return {"error": "No games returned from Odds API for this league"}
-
-    # Find the requested game
     game = next((g for g in games if g.get("id") == game_id), None)
     if not game:
-        return {"error": f"Game ID '{game_id}' not found in Odds API response"}
+        return {"error": "Game not found"}
 
-    # Initialize best lines container
     best = {
         "spread": {},
         "moneyline": {},
-        "total": {
-            "over": None,
-            "under": None
-        }
+        "total": {"over": None, "under": None}
     }
-    
+
     consensus = {
-    "spread": {},
-    "moneyline": {},
-    "total": {
-        "over": [],
-        "under": []
+        "spread": {},
+        "moneyline": {},
+        "total": {"over": [], "under": []}
     }
-    }
-    
-    # Iterate safely through bookmakers and markets
+
     for book in game.get("bookmakers", []):
         book_title = book.get("title")
-
         if book_title not in ALLOWED_BOOKS:
             continue
 
         for market in book.get("markets", []):
             key = market.get("key")
-            outcomes = market.get("outcomes", [])
 
-            # -------- SPREADS --------
-            if key == "spreads":
-                for outcome in outcomes:
-                    team = outcome.get("name")
-                    point = outcome.get("point")
-                    price = outcome.get("price")
+            for outcome in market.get("outcomes", []):
+                team = outcome.get("name")
+                point = outcome.get("point")
+                price = outcome.get("price")
+
+                if key == "spreads":
+                    consensus["spread"].setdefault(team, []).append(point)
 
                     if team not in best["spread"] or abs(point) < abs(best["spread"][team]["point"]):
                         best["spread"][team] = {
@@ -184,13 +169,9 @@ def best_lines(league: str, game_id: str):
                             "book": book_title,
                             "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
-                         consensus["spread"].setdefault(team, []).append(point)
 
-            # -------- MONEYLINES --------
-            elif key == "h2h":
-                for outcome in outcomes:
-                    team = outcome.get("name")
-                    price = outcome.get("price")
+                elif key == "h2h":
+                    consensus["moneyline"].setdefault(team, []).append(price)
 
                     if team not in best["moneyline"] or price > best["moneyline"][team]["price"]:
                         best["moneyline"][team] = {
@@ -198,16 +179,11 @@ def best_lines(league: str, game_id: str):
                             "book": book_title,
                             "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                         }
-                        consensus["moneyline"].setdefault(team, []).append(price)
 
-            # -------- TOTALS --------
-            elif key == "totals":
-                for outcome in outcomes:
-                    side = outcome.get("name")  # Over / Under
-                    point = outcome.get("point")
-                    price = outcome.get("price")
+                elif key == "totals":
+                    if team == "Over":
+                        consensus["total"]["over"].append(point)
 
-                    if side == "Over":
                         if not best["total"]["over"] or point < best["total"]["over"]["point"]:
                             best["total"]["over"] = {
                                 "point": point,
@@ -215,8 +191,10 @@ def best_lines(league: str, game_id: str):
                                 "book": book_title,
                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
-                             consensus["total"]["over"].append(point)
-                    elif side == "Under":
+
+                    elif team == "Under":
+                        consensus["total"]["under"].append(point)
+
                         if not best["total"]["under"] or point > best["total"]["under"]["point"]:
                             best["total"]["under"] = {
                                 "point": point,
@@ -224,41 +202,40 @@ def best_lines(league: str, game_id: str):
                                 "book": book_title,
                                 "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
-                             consensus["total"]["under"].append(point)
 
-    # -------- ADD TEAMS --------
+    edges = {
+        "spread": {},
+        "moneyline": {},
+        "total": {}
+    }
+
+    for team, spread in best["spread"].items():
+        avg = mean(consensus["spread"][team])
+        edges["spread"][team] = round(spread["point"] - avg, 2)
+
+    for team, ml in best["moneyline"].items():
+        avg = mean(consensus["moneyline"][team])
+        edges["moneyline"][team] = int(ml["price"] - avg)
+
+    edges["total"]["over"] = (
+        round(best["total"]["over"]["point"] - mean(consensus["total"]["over"]), 2)
+        if best["total"]["over"] else None
+    )
+
+    edges["total"]["under"] = (
+        round(best["total"]["under"]["point"] - mean(consensus["total"]["under"]), 2)
+        if best["total"]["under"] else None
+    )
+
     teams = {
         "home": game.get("home_team"),
         "away": game.get("away_team")
     }
 
-edges = {}
-
-# Spread edges
-edges["spread"] = {}
-for team, best_spread in best["spread"].items():
-    avg = mean(consensus["spread"].get(team, []))
-    edges["spread"][team] = round(best_spread["point"] - avg, 2)
-
-# Moneyline edges (cents)
-edges["moneyline"] = {}
-for team, best_ml in best["moneyline"].items():
-    avg = mean(consensus["moneyline"].get(team, []))
-    edges["moneyline"][team] = int(best_ml["price"] - avg)
-
-# Totals
-edges["total"] = {
-    "over": round(best["total"]["over"]["point"] - mean(consensus["total"]["over"]), 2)
-    if best["total"]["over"] else None,
-    "under": round(best["total"]["under"]["point"] - mean(consensus["total"]["under"]), 2)
-    if best["total"]["under"] else None
-}
-
-    # -------- RETURN RESPONSE --------
     return {
         "game_id": game_id,
         "league": league,
         "teams": teams,
-        "best_lines": best
+        "best_lines": best,
         "edges": edges
     }
