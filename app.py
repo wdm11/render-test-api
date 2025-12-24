@@ -23,21 +23,6 @@ BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 ALLOWED_BOOKS = {
     "DraftKings": {
-        "deeplink": "https://sportsbook.draftkings.com"
-    },
-    "FanDuel": {
-        "deeplink": "https://sportsbook.fanduel.com"
-    },
-    "BetMGM": {
-        "deeplink": "https://sports.betmgm.com"
-    },
-    "Caesars": {
-        "deeplink": "https://www.caesars.com/sportsbook"
-    }
-}
-
-ALLOWED_BOOKS = {
-    "DraftKings": {
         "key": "draftkings",
         "deeplink": "https://sportsbook.draftkings.com"
     },
@@ -52,6 +37,10 @@ ALLOWED_BOOKS = {
     "Caesars": {
         "key": "caesars",
         "deeplink": "https://www.caesars.com/sportsbook"
+    },
+    "bet365": {
+        "key": "bet365",
+        "deeplink": "https://www.bet365.com"
     }
 }
 
