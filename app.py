@@ -11,7 +11,12 @@ SPORT_MAP = {
     "NFL": "americanfootball_nfl",
     "NCAAF": "americanfootball_ncaaf",
     "NCAAB": "basketball_ncaab",
-    "NHL": "icehockey_nhl"
+    "NBA": "basketball_nba",
+    "MLB": "baseball_mlb",
+    "NHL": "icehockey_nhl",
+    "MLS": "soccer_usa_mls",
+    "EPL": "soccer_epl",
+    "UFC": "mma_mixed_martial_arts"
 }
 
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
