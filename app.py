@@ -153,16 +153,39 @@ def best_lines(league: str, game_id: str):
                 point = outcome.get("point")
                 price = outcome.get("price")
 
-                if key == "spreads":
-                    consensus["spread"].setdefault(team, []).append(point)
+                # -------- SPREADS (directionally correct) --------
+if key == "spreads":
+    for outcome in outcomes:
+        team = outcome.get("name")
+        point = outcome.get("point")
+        price = outcome.get("price")
 
-                    if team not in best["spread"] or abs(point) < abs(best["spread"][team]["point"]):
-                        best["spread"][team] = {
-                            "point": point,
-                            "price": price,
-                            "book": book_title,
-                            "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
-                        }
+        current = best["spread"].get(team)
+
+        if not current:
+            take = True
+        elif point > 0 and point > current["point"]:
+            # Underdog → higher number is better
+            take = True
+        elif point < 0 and point > current["point"]:
+            # Favorite → closer to zero (less negative) is better
+            take = True
+        elif point == current["point"] and price > current["price"]:
+            # Same number → better price
+            take = True
+        else:
+            take = False
+
+        if take:
+            best["spread"][team] = {
+                "point": point,
+                "price": price,
+                "book": book_title,
+                "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
+            }
+
+        # Always collect for consensus
+        consensus["spread"].setdefault(team, []).append(point)
 
                 elif key == "h2h":
                     consensus["moneyline"].setdefault(team, []).append(price)
