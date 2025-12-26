@@ -96,7 +96,8 @@ def get_games(league: str):
         game_list.append({
             "id": g.get("id"),
             "away": g.get("away_team"),
-            "home": g.get("home_team")
+            "home": g.get("home_team"),
+            "commence_time": g.get("commence_time")
         })
 
     return {"games": game_list}
