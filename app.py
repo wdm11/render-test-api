@@ -283,7 +283,7 @@ def league_summary(league: str):
         return {"error": "No games returned from Odds API for this league"}
 
     summary = []
-    
+
     for game in games:
         best = {
             "spread": {},
@@ -291,10 +291,12 @@ def league_summary(league: str):
             "total": {"over": None, "under": None}
         }
 
+        # Iterate over all bookmakers to find the single best line
         for book in game.get("bookmakers", []):
             book_title = book.get("title")
             if book_title not in ALLOWED_BOOKS:
                 continue
+            deeplink = ALLOWED_BOOKS[book_title]["deeplink"]
 
             for market in book.get("markets", []):
                 key = market.get("key")
@@ -302,12 +304,11 @@ def league_summary(league: str):
                     team = outcome.get("name")
                     point = outcome.get("point")
                     price = outcome.get("price")
-                    deeplink = ALLOWED_BOOKS[book_title]["deeplink"]
 
-                    # -------- SPREADS --------
+                    # -------- SPREADS (points-based) --------
                     if key == "spreads":
                         current = best["spread"].get(team)
-                        if not current or (point > 0 and point > current["point"]) or (point < 0 and point > current["point"]) or (point == current["point"] and price > current["price"]):
+                        if not current or abs(point) < abs(current["point"]):
                             best["spread"][team] = {
                                 "point": point,
                                 "price": price,
@@ -315,7 +316,7 @@ def league_summary(league: str):
                                 "deeplink": deeplink
                             }
 
-                    # -------- MONEYLINES --------
+                    # -------- MONEYLINES (best price) --------
                     elif key == "h2h":
                         current = best["moneyline"].get(team)
                         if not current or price > current["price"]:
@@ -355,6 +356,6 @@ def league_summary(league: str):
 
     return {
         "league": league,
-        "timestamp": str(datetime.utcnow()),
+        "generated_at": str(datetime.utcnow()),
         "games": summary
     }
