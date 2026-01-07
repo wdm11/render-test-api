@@ -24,11 +24,11 @@ SPORT_MAP = {
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 ALLOWED_BOOKS = {
-    "DraftKings": {"key": "draftkings", "deeplink": "draftkings://sportsbook"},
-    "FanDuel": {"key": "fanduel", "deeplink": "fanduel://sportsbook"},
-    "BetMGM": {"key": "betmgm", "deeplink": "betmgm://sportsbook"},
-    "Caesars": {"key": "caesars", "deeplink": "caesars://sportsbook"},
-    "bet365": {"key": "bet365", "deeplink": "bet365://"}
+    "DraftKings": {"key": "draftkings", "deeplink": "https://sportsbook.draftkings.com"},
+    "FanDuel": {"key": "fanduel", "deeplink": "https://sportsbook.fanduel.com"},
+    "BetMGM": {"key": "betmgm", "deeplink": "https://sports.betmgm.com"},
+    "Caesars": {"key": "caesars", "deeplink": "https://www.caesars.com/sportsbook"},
+    "bet365": {"key": "bet365", "deeplink": "https://www.bet365.com"}
 }
 
 BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
