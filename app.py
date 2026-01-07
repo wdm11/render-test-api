@@ -3,7 +3,7 @@ import os
 import requests
 from statistics import mean
 from datetime import datetime
-from zoneinfo import ZoneInfo  # Python 3.9+
+import pytz
 
 app = FastAPI()
 
@@ -24,31 +24,27 @@ SPORT_MAP = {
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 ALLOWED_BOOKS = {
+    "BetMGM": {"key": "betmgm", "deeplink": "https://sports.betmgm.com"},
     "DraftKings": {"key": "draftkings", "deeplink": "https://sportsbook.draftkings.com"},
     "FanDuel": {"key": "fanduel", "deeplink": "https://sportsbook.fanduel.com"},
-    "BetMGM": {"key": "betmgm", "deeplink": "shortcuts://run-shortcut?name=Open_BetMGM"},
-    "Caesars": {"key": "caesars", "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"},
-    "bet365": {"key": "bet365", "deeplink": "shortcuts://run-shortcut?name=Open_bet365"}
+    "Caesars": {"key": "caesars", "deeplink": "https://www.caesars.com/sportsbook"},
+    "bet365": {"key": "bet365", "deeplink": "https://www.bet365.com"}
 }
 
-BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
-
-def moneyline_value(odds):
-    """
-    Normalize American moneyline so higher is always better.
-    +X: higher is better
-    -X: closer to zero is better
-    """
-    if odds > 0:
-        return odds
-    else:
-        return 100 / abs(odds) * 100
+# Priority for tie-breakers
+BOOK_PRIORITY = {
+    "BetMGM": 0,
+    "DraftKings": 1,
+    "FanDuel": 2,
+    "Caesars": 3,
+    "bet365": 4
+}
 
 @app.get("/league-summary")
 def league_summary(league: str):
-    league = league.upper()
+    league = league.strip().upper()
     if league not in SPORT_MAP:
-        return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
+        return {"error": f"Invalid league '{league}'"}
 
     sport = SPORT_MAP[league]
 
@@ -65,153 +61,154 @@ def league_summary(league: str):
         )
         r.raise_for_status()
     except requests.RequestException as e:
-        return {"error": "Odds API error", "details": str(e)}
+        return {"error": "Failed to fetch odds", "details": str(e)}
 
     games = r.json()
     if not games:
-        return {"error": "No games returned from Odds API for this league"}
+        return {"error": "No games returned"}
 
-    summary = []
-
-    # Central Time for timestamps
-    local_tz = ZoneInfo("America/Chicago")
-    generated_at = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
-    formatted_time = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
+    summaries = []
 
     for game in games:
-        best = {
-            "spread": {},
-            "moneyline": {},
-            "total": {"over": None, "under": None}
-        }
+        best = {"spread": {}, "moneyline": {}, "total": {"over": None, "under": None}}
+        consensus = {"spread": {}, "moneyline": {}, "total": {"over": [], "under": []}}
+
+        home = game.get("home_team")
+        away = game.get("away_team")
+
+        game_datetime_utc = datetime.fromisoformat(game.get("commence_time").replace("Z", "+00:00"))
+        central = pytz.timezone("US/Central")
+        game_datetime_central = game_datetime_utc.astimezone(central)
+        formatted_time = game_datetime_central.strftime("%Y-%m-%d %I:%M %p %Z")
 
         for book in game.get("bookmakers", []):
             book_title = book.get("title")
             if book_title not in ALLOWED_BOOKS:
                 continue
-            deeplink = ALLOWED_BOOKS[book_title]["deeplink"]
+            priority = BOOK_PRIORITY.get(book_title, 999)
 
             for market in book.get("markets", []):
                 key = market.get("key")
-                for outcome in market.get("outcomes", []):
+                outcomes = market.get("outcomes", [])
+
+                for outcome in outcomes:
                     team = outcome.get("name")
                     point = outcome.get("point")
                     price = outcome.get("price")
 
-                    # ---------- SPREADS ----------
+                    # -------- SPREADS --------
                     if key == "spreads":
                         current = best["spread"].get(team)
                         take = False
                         if not current:
                             take = True
-                        elif abs(point) < abs(current["point"]):
+                        elif (point > 0 and (current["point"] < point or
+                                              (current["point"] == point and price > current["price"]) or
+                                              (current["point"] == point and price == current["price"] and priority < BOOK_PRIORITY[current["book"]]))
+                             ):
                             take = True
-                        elif abs(point) == abs(current["point"]):
-                            # tie → better price
-                            if price > current["price"]:
-                                take = True
-                            # tie → sportsbook priority
-                            if not take:
-                                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                if new_priority < current_priority:
-                                    take = True
+                        elif (point < 0 and (current["point"] < point or
+                                              (current["point"] == point and price > current["price"]) or
+                                              (current["point"] == point and price == current["price"] and priority < BOOK_PRIORITY[current["book"]]))
+                             ):
+                            take = True
+
                         if take:
                             best["spread"][team] = {
                                 "point": point,
                                 "price": price,
                                 "book": book_title,
-                                "deeplink": deeplink
+                                "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
+                        consensus["spread"].setdefault(team, []).append(point)
 
-                    # ---------- MONEYLINE ----------
+                    # -------- MONEYLINE --------
                     elif key == "h2h":
+                        consensus["moneyline"].setdefault(team, []).append(price)
                         current = best["moneyline"].get(team)
                         take = False
                         if not current:
                             take = True
                         else:
-                            new_val = moneyline_value(price)
-                            current_val = moneyline_value(current["price"])
-                            if new_val > current_val:
+                            # Best moneyline: numerically highest American odds
+                            if price > current["price"]:
                                 take = True
-                            elif new_val == current_val:
-                                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                if new_priority < current_priority:
-                                    take = True
+                            elif price == current["price"] and priority < BOOK_PRIORITY[current["book"]]:
+                                take = True
                         if take:
                             best["moneyline"][team] = {
                                 "price": price,
                                 "book": book_title,
-                                "deeplink": deeplink
+                                "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                             }
 
-                    # ---------- TOTALS ----------
+                    # -------- TOTALS --------
                     elif key == "totals":
-                        # Over
                         if team == "Over":
                             current = best["total"]["over"]
                             take = False
-                            if not current or point < current["point"]:
+                            if not current:
                                 take = True
-                            elif point == current["point"]:
-                                if price > current["price"]:
-                                    take = True
-                                else:
-                                    current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                    new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                    if new_priority < current_priority:
-                                        take = True
+                            elif point < current["point"]:
+                                take = True
+                            elif point == current["point"] and price > current["price"]:
+                                take = True
+                            elif point == current["point"] and price == current["price"] and priority < BOOK_PRIORITY[current["book"]]:
+                                take = True
                             if take:
                                 best["total"]["over"] = {
                                     "point": point,
                                     "price": price,
                                     "book": book_title,
-                                    "deeplink": deeplink
+                                    "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                                 }
-                        # Under
+                            consensus["total"]["over"].append(point)
                         elif team == "Under":
                             current = best["total"]["under"]
                             take = False
-                            if not current or point > current["point"]:
+                            if not current:
                                 take = True
-                            elif point == current["point"]:
-                                if price > current["price"]:
-                                    take = True
-                                else:
-                                    current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                    new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                    if new_priority < current_priority:
-                                        take = True
+                            elif point > current["point"]:
+                                take = True
+                            elif point == current["point"] and price > current["price"]:
+                                take = True
+                            elif point == current["point"] and price == current["price"] and priority < BOOK_PRIORITY[current["book"]]:
+                                take = True
                             if take:
                                 best["total"]["under"] = {
                                     "point": point,
                                     "price": price,
                                     "book": book_title,
-                                    "deeplink": deeplink
+                                    "deeplink": ALLOWED_BOOKS[book_title]["deeplink"]
                                 }
+                            consensus["total"]["under"].append(point)
 
-        # ---------- Game time ----------
-        game_time_utc = game.get("commence_time")
-        if game_time_utc:
-            game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
-            formatted_game_time = game_dt.strftime("%Y-%m-%d %I:%M %p %Z")
-        else:
-            formatted_game_time = "Unknown"
+        # Calculate edges (difference from consensus mean)
+        edges = {"spread": {}, "moneyline": {}, "total": {}}
+        for team, spread in best["spread"].items():
+            avg = mean(consensus["spread"][team])
+            edges["spread"][team] = round(spread["point"] - avg, 2)
 
-        summary.append({
+        for team, ml in best["moneyline"].items():
+            avg = mean(consensus["moneyline"][team])
+            edges["moneyline"][team] = int(ml["price"] - avg)
+
+        edges["total"]["over"] = (round(best["total"]["over"]["point"] - mean(consensus["total"]["over"]), 2)
+                                  if best["total"]["over"] else None)
+        edges["total"]["under"] = (round(best["total"]["under"]["point"] - mean(consensus["total"]["under"]), 2)
+                                   if best["total"]["under"] else None)
+
+        summaries.append({
             "game_id": game.get("id"),
-            "teams": {
-                "home": game.get("home_team"),
-                "away": game.get("away_team")
-            },
-            "game_time": formatted_game_time,
-            "best_lines": best
+            "home_team": home,
+            "away_team": away,
+            "start_time": formatted_time,
+            "best_lines": best,
+            "edges": edges
         })
 
     return {
         "league": league,
-        "generated_at": formatted_time,
-        "games": summary
+        "generated_at": datetime.now(central).strftime("%Y-%m-%d %I:%M %p %Z"),
+        "summaries": summaries
     }
