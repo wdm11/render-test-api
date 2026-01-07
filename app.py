@@ -22,14 +22,14 @@ SPORT_MAP = {
 }
 
 ALLOWED_BOOKS = {
+    "BetMGM": {
+        "deeplink": "https://sports.betmgm.com"
+    },
     "DraftKings": {
         "deeplink": "https://sportsbook.draftkings.com"
     },
     "FanDuel": {
         "deeplink": "https://sportsbook.fanduel.com"
-    },
-    "BetMGM": {
-        "deeplink": "https://sports.betmgm.com"
     },
     "Caesars": {
         "deeplink": "https://www.caesars.com/sportsbook"
@@ -257,9 +257,9 @@ from statistics import mean
 
 @app.get("/league-summary")
 def league_summary(league: str):
-    league = league.strip().upper()
+    league = league.upper()
     if league not in SPORT_MAP:
-        return {"error": f"Invalid league '{league}'"}
+        return {"error": f"Invalid league '{league}'. Valid leagues: {list(SPORT_MAP.keys())}"}
 
     sport = SPORT_MAP[league]
 
@@ -276,25 +276,19 @@ def league_summary(league: str):
         )
         r.raise_for_status()
     except requests.RequestException as e:
-        return {"error": "Failed to fetch odds", "details": str(e)}
+        return {"error": "Odds API error", "details": str(e)}
 
     games = r.json()
     if not games:
-        return {"error": "No games returned"}
+        return {"error": "No games returned from Odds API for this league"}
 
-    summary_games = []
-
+    summary = []
+    
     for game in games:
         best = {
             "spread": {},
             "moneyline": {},
             "total": {"over": None, "under": None}
-        }
-
-        consensus = {
-            "spread": {},
-            "moneyline": {},
-            "total": {"over": [], "under": []}
         }
 
         for book in game.get("bookmakers", []):
@@ -304,80 +298,63 @@ def league_summary(league: str):
 
             for market in book.get("markets", []):
                 key = market.get("key")
+                for outcome in market.get("outcomes", []):
+                    team = outcome.get("name")
+                    point = outcome.get("point")
+                    price = outcome.get("price")
+                    deeplink = ALLOWED_BOOKS[book_title]["deeplink"]
 
-                if key == "spreads":
-                    for outcome in market.get("outcomes", []):
-                        team = outcome.get("name")
-                        point = outcome.get("point")
-                        price = outcome.get("price")
-
+                    # -------- SPREADS --------
+                    if key == "spreads":
                         current = best["spread"].get(team)
-                        take = False
-
-                        if not current:
-                            take = True
-                        elif point > 0 and point > current["point"]:
-                            take = True
-                        elif point < 0 and point > current["point"]:
-                            take = True
-                        elif point == current["point"] and price > current["price"]:
-                            take = True
-
-                        if take:
+                        if not current or (point > 0 and point > current["point"]) or (point < 0 and point > current["point"]) or (point == current["point"] and price > current["price"]):
                             best["spread"][team] = {
                                 "point": point,
                                 "price": price,
-                                "book": book_title
+                                "book": book_title,
+                                "deeplink": deeplink
                             }
 
-                        consensus["spread"].setdefault(team, []).append(point)
-
-                elif key == "h2h":
-                    for outcome in market.get("outcomes", []):
-                        team = outcome.get("name")
-                        price = outcome.get("price")
-
-                        consensus["moneyline"].setdefault(team, []).append(price)
-
-                        if team not in best["moneyline"] or price > best["moneyline"][team]["price"]:
+                    # -------- MONEYLINES --------
+                    elif key == "h2h":
+                        current = best["moneyline"].get(team)
+                        if not current or price > current["price"]:
                             best["moneyline"][team] = {
                                 "price": price,
-                                "book": book_title
+                                "book": book_title,
+                                "deeplink": deeplink
                             }
 
-                elif key == "totals":
-                    for outcome in market.get("outcomes", []):
-                        side = outcome.get("name")
-                        point = outcome.get("point")
-                        price = outcome.get("price")
-
-                        if side == "Over":
-                            consensus["total"]["over"].append(point)
+                    # -------- TOTALS --------
+                    elif key == "totals":
+                        if team == "Over":
                             if not best["total"]["over"] or point < best["total"]["over"]["point"]:
                                 best["total"]["over"] = {
                                     "point": point,
                                     "price": price,
-                                    "book": book_title
+                                    "book": book_title,
+                                    "deeplink": deeplink
                                 }
-
-                        elif side == "Under":
-                            consensus["total"]["under"].append(point)
+                        elif team == "Under":
                             if not best["total"]["under"] or point > best["total"]["under"]["point"]:
                                 best["total"]["under"] = {
                                     "point": point,
                                     "price": price,
-                                    "book": book_title
+                                    "book": book_title,
+                                    "deeplink": deeplink
                                 }
 
-        summary_games.append({
-            "away": game.get("away_team"),
-            "home": game.get("home_team"),
-            "commence_time": game.get("commence_time"),
+        summary.append({
+            "game_id": game.get("id"),
+            "teams": {
+                "home": game.get("home_team"),
+                "away": game.get("away_team")
+            },
             "best_lines": best
         })
 
     return {
         "league": league,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "games": summary_games
+        "timestamp": str(datetime.utcnow()),
+        "games": summary
     }
