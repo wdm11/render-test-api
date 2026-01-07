@@ -3,7 +3,6 @@ import os
 import requests
 from statistics import mean
 from datetime import datetime
-import pytz
 
 app = FastAPI()
 
@@ -24,11 +23,11 @@ SPORT_MAP = {
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 ALLOWED_BOOKS = {
-    "BetMGM": {"key": "betmgm", "deeplink": "https://sports.betmgm.com"},
     "DraftKings": {"key": "draftkings", "deeplink": "https://sportsbook.draftkings.com"},
     "FanDuel": {"key": "fanduel", "deeplink": "https://sportsbook.fanduel.com"},
-    "Caesars": {"key": "caesars", "deeplink": "https://www.caesars.com/sportsbook"},
-    "bet365": {"key": "bet365", "deeplink": "https://www.bet365.com"}
+    "BetMGM": {"key": "betmgm", "deeplink": "shortcuts://run-shortcut?name=Open_BetMGM"},
+    "Caesars": {"key": "caesars", "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"},
+    "bet365": {"key": "bet365", "deeplink": "shortcuts://run-shortcut?name=Open_bet365"}
 }
 
 # Priority for tie-breakers
