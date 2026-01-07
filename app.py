@@ -24,8 +24,8 @@ SPORT_MAP = {
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 ALLOWED_BOOKS = {
-    "DraftKings": {"key": "draftkings", "deeplink": "draftkings://sportsbook"},
-    "FanDuel": {"key": "fanduel", "deeplink": "fanduel://sportsbook"},
+    "DraftKings": {"key": "draftkings", "deeplink": "https://sportsbook.draftkings.com"},
+    "FanDuel": {"key": "fanduel", "deeplink": "https://sportsbook.fanduel.com"},
     "BetMGM": {"key": "betmgm", "deeplink": "shortcuts://run-shortcut?name=Open_BetMGM"},
     "Caesars": {"key": "caesars", "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"},
     "bet365": {"key": "bet365", "deeplink": "shortcuts://run-shortcut?name=Open_bet365"}
