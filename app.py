@@ -22,20 +22,25 @@ SPORT_MAP = {
 }
 
 ALLOWED_BOOKS = {
-    "BetMGM": {
-        "deeplink": "https://sports.betmgm.com"
-    },
     "DraftKings": {
-        "deeplink": "https://sportsbook.draftkings.com"
+        "key": "draftkings",
+        "deeplink": "draftkings://sportsbook"
     },
     "FanDuel": {
-        "deeplink": "https://sportsbook.fanduel.com"
+        "key": "fanduel",
+        "deeplink": "fanduel://sportsbook"
+    },
+    "BetMGM": {
+        "key": "betmgm",
+        "deeplink": "betmgm://sportsbook"
     },
     "Caesars": {
-        "deeplink": "https://www.caesars.com/sportsbook"
+        "key": "caesars",
+        "deeplink": "caesars://sportsbook"
     },
     "bet365": {
-        "deeplink": "https://www.bet365.com"
+        "key": "bet365",
+        "deeplink": "bet365://"
     }
 }
 
