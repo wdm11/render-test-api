@@ -73,8 +73,8 @@ def league_summary(league: str):
 
     summary = []
 
-    # Local time for timestamp
-    local_tz = ZoneInfo("America/New_York")
+    # Central Time for timestamps
+    local_tz = ZoneInfo("America/Chicago")
     generated_at = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
     formatted_time = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
 
@@ -107,14 +107,10 @@ def league_summary(league: str):
                         elif abs(point) < abs(current["point"]):
                             take = True
                         elif abs(point) == abs(current["point"]):
-                            # tie on points → better price
-                            if point < 0:
-                                if price > current["price"]:
-                                    take = True
-                            else:
-                                if price > current["price"]:
-                                    take = True
-                            # still tie → sportsbook priority
+                            # tie → better price
+                            if price > current["price"]:
+                                take = True
+                            # tie → sportsbook priority
                             if not take:
                                 current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
                                 new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
@@ -174,7 +170,6 @@ def league_summary(league: str):
                                     "book": book_title,
                                     "deeplink": deeplink
                                 }
-
                         # Under
                         elif team == "Under":
                             current = best["total"]["under"]
@@ -197,12 +192,21 @@ def league_summary(league: str):
                                     "deeplink": deeplink
                                 }
 
+        # ---------- Game time ----------
+        game_time_utc = game.get("commence_time")
+        if game_time_utc:
+            game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
+            formatted_game_time = game_dt.strftime("%Y-%m-%d %I:%M %p %Z")
+        else:
+            formatted_game_time = "Unknown"
+
         summary.append({
             "game_id": game.get("id"),
             "teams": {
                 "home": game.get("home_team"),
                 "away": game.get("away_team")
             },
+            "game_time": formatted_game_time,
             "best_lines": best
         })
 
