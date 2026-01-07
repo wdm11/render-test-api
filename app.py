@@ -251,3 +251,133 @@ def best_lines(league: str, game_id: str):
         "best_lines": best,
         "edges": edges
     }
+    
+from datetime import datetime, timezone
+from statistics import mean
+
+@app.get("/league-summary")
+def league_summary(league: str):
+    league = league.strip().upper()
+    if league not in SPORT_MAP:
+        return {"error": f"Invalid league '{league}'"}
+
+    sport = SPORT_MAP[league]
+
+    try:
+        r = requests.get(
+            f"{BASE_URL}/{sport}/odds",
+            params={
+                "apiKey": API_KEY,
+                "regions": "us",
+                "markets": "spreads,h2h,totals",
+                "oddsFormat": "american"
+            },
+            timeout=10
+        )
+        r.raise_for_status()
+    except requests.RequestException as e:
+        return {"error": "Failed to fetch odds", "details": str(e)}
+
+    games = r.json()
+    if not games:
+        return {"error": "No games returned"}
+
+    summary_games = []
+
+    for game in games:
+        best = {
+            "spread": {},
+            "moneyline": {},
+            "total": {"over": None, "under": None}
+        }
+
+        consensus = {
+            "spread": {},
+            "moneyline": {},
+            "total": {"over": [], "under": []}
+        }
+
+        for book in game.get("bookmakers", []):
+            book_title = book.get("title")
+            if book_title not in ALLOWED_BOOKS:
+                continue
+
+            for market in book.get("markets", []):
+                key = market.get("key")
+
+                if key == "spreads":
+                    for outcome in market.get("outcomes", []):
+                        team = outcome.get("name")
+                        point = outcome.get("point")
+                        price = outcome.get("price")
+
+                        current = best["spread"].get(team)
+                        take = False
+
+                        if not current:
+                            take = True
+                        elif point > 0 and point > current["point"]:
+                            take = True
+                        elif point < 0 and point > current["point"]:
+                            take = True
+                        elif point == current["point"] and price > current["price"]:
+                            take = True
+
+                        if take:
+                            best["spread"][team] = {
+                                "point": point,
+                                "price": price,
+                                "book": book_title
+                            }
+
+                        consensus["spread"].setdefault(team, []).append(point)
+
+                elif key == "h2h":
+                    for outcome in market.get("outcomes", []):
+                        team = outcome.get("name")
+                        price = outcome.get("price")
+
+                        consensus["moneyline"].setdefault(team, []).append(price)
+
+                        if team not in best["moneyline"] or price > best["moneyline"][team]["price"]:
+                            best["moneyline"][team] = {
+                                "price": price,
+                                "book": book_title
+                            }
+
+                elif key == "totals":
+                    for outcome in market.get("outcomes", []):
+                        side = outcome.get("name")
+                        point = outcome.get("point")
+                        price = outcome.get("price")
+
+                        if side == "Over":
+                            consensus["total"]["over"].append(point)
+                            if not best["total"]["over"] or point < best["total"]["over"]["point"]:
+                                best["total"]["over"] = {
+                                    "point": point,
+                                    "price": price,
+                                    "book": book_title
+                                }
+
+                        elif side == "Under":
+                            consensus["total"]["under"].append(point)
+                            if not best["total"]["under"] or point > best["total"]["under"]["point"]:
+                                best["total"]["under"] = {
+                                    "point": point,
+                                    "price": price,
+                                    "book": book_title
+                                }
+
+        summary_games.append({
+            "away": game.get("away_team"),
+            "home": game.get("home_team"),
+            "commence_time": game.get("commence_time"),
+            "best_lines": best
+        })
+
+    return {
+        "league": league,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "games": summary_games
+    }
