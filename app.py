@@ -33,16 +33,6 @@ ALLOWED_BOOKS = {
 
 BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
 
-def normalize_team(name):
-    # Remove extra spaces
-    name = name.strip()
-    # Standardize 'St' → 'State'
-    if name.endswith(" St"):
-        name = name[:-3] + " State"
-    # Remove periods
-    name = name.replace(".", "")
-    return name
-
 def moneyline_value(odds):
     """
     Normalize American moneyline so higher is always better.
@@ -110,9 +100,8 @@ def league_summary(league: str):
         best = {"spread": {}, "moneyline": {}, "total": {"over": None, "under": None}}
 
         # Game info
-        team = normalize_team(outcome.get("name"))
-        home = normalize_team(game.get("home_team"))
-        away = normalize_team(game.get("away_team"))
+        home = game.get("home_team")
+        away = game.get("away_team")
         game_time_utc = game.get("commence_time")
         if game_time_utc:
             game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
