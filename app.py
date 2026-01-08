@@ -98,99 +98,123 @@ def league_summary(league: str):
                     point = outcome.get("point")
                     price = outcome.get("price")
 
-                    # ---------- SPREADS ----------
-                    if key == "spreads":
-                        current = best["spread"].get(team)
-                        take = False
-                        if not current:
-                            take = True
-                        elif abs(point) < abs(current["point"]):
-                            take = True
-                        elif abs(point) == abs(current["point"]):
-                            # tie → better price
-                            if price > current["price"]:
-                                take = True
-                            # tie → sportsbook priority
-                            if not take:
-                                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                if new_priority < current_priority:
-                                    take = True
-                        if take:
-                            best["spread"][team] = {
-                                "point": point,
-                                "price": price,
-                                "book": book_title,
-                                "deeplink": deeplink
-                            }
+                    # Helper function for American odds
+def better_price(new_price, current_price):
+    """
+    Returns True if new_price is better than current_price.
+    Positive odds: higher is better
+    Negative odds: closer to zero is better (less negative)
+    """
+    if current_price is None:
+        return True
+    if new_price > 0 and current_price > 0:
+        return new_price > current_price
+    elif new_price < 0 and current_price < 0:
+        return new_price > current_price  # e.g., -150 > -250
+    elif new_price > 0 and current_price < 0:
+        return True  # prefer positive over negative
+    elif new_price < 0 and current_price > 0:
+        return False
+    return False
 
-                    # ---------- MONEYLINE ----------
-                    elif key == "h2h":
-                        current = best["moneyline"].get(team)
-                        take = False
-                        if not current:
-                            take = True
-                        else:
-                            new_val = moneyline_value(price)
-                            current_val = moneyline_value(current["price"])
-                            if new_val > current_val:
-                                take = True
-                            elif new_val == current_val:
-                                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                if new_priority < current_priority:
-                                    take = True
-                        if take:
-                            best["moneyline"][team] = {
-                                "price": price,
-                                "book": book_title,
-                                "deeplink": deeplink
-                            }
 
-                    # ---------- TOTALS ----------
-                    elif key == "totals":
-                        # Over
-                        if team == "Over":
-                            current = best["total"]["over"]
-                            take = False
-                            if not current or point < current["point"]:
-                                take = True
-                            elif point == current["point"]:
-                                if price > current["price"]:
-                                    take = True
-                                else:
-                                    current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                    new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                    if new_priority < current_priority:
-                                        take = True
-                            if take:
-                                best["total"]["over"] = {
-                                    "point": point,
-                                    "price": price,
-                                    "book": book_title,
-                                    "deeplink": deeplink
-                                }
-                        # Under
-                        elif team == "Under":
-                            current = best["total"]["under"]
-                            take = False
-                            if not current or point > current["point"]:
-                                take = True
-                            elif point == current["point"]:
-                                if price > current["price"]:
-                                    take = True
-                                else:
-                                    current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
-                                    new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
-                                    if new_priority < current_priority:
-                                        take = True
-                            if take:
-                                best["total"]["under"] = {
-                                    "point": point,
-                                    "price": price,
-                                    "book": book_title,
-                                    "deeplink": deeplink
-                                }
+# ---------- SPREADS ----------
+if key == "spreads":
+    current = best["spread"].get(team)
+    take = False
+    if not current:
+        take = True
+    else:
+        # Compare absolute point first (smaller absolute spread is better)
+        if abs(point) < abs(current["point"]):
+            take = True
+        elif abs(point) == abs(current["point"]):
+            # tie → better price
+            if better_price(price, current["price"]):
+                take = True
+            # tie → sportsbook priority
+            if not take:
+                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
+                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
+                if new_priority < current_priority:
+                    take = True
+    if take:
+        best["spread"][team] = {
+            "point": point,
+            "price": price,
+            "book": book_title,
+            "deeplink": deeplink
+        }
+
+# ---------- MONEYLINE ----------
+elif key == "h2h":
+    current = best["moneyline"].get(team)
+    take = False
+    if not current:
+        take = True
+    else:
+        if better_price(price, current["price"]):
+            take = True
+        elif price == current["price"]:
+            current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
+            new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
+            if new_priority < current_priority:
+                take = True
+    if take:
+        best["moneyline"][team] = {
+            "price": price,
+            "book": book_title,
+            "deeplink": deeplink
+        }
+
+# ---------- TOTALS ----------
+elif key == "totals":
+    # Over
+    if team == "Over":
+        current = best["total"]["over"]
+        take = False
+        if not current:
+            take = True
+        elif point < current["point"]:
+            take = True
+        elif point == current["point"]:
+            if better_price(price, current["price"]):
+                take = True
+            else:
+                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
+                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
+                if new_priority < current_priority:
+                    take = True
+        if take:
+            best["total"]["over"] = {
+                "point": point,
+                "price": price,
+                "book": book_title,
+                "deeplink": deeplink
+            }
+    # Under
+    elif team == "Under":
+        current = best["total"]["under"]
+        take = False
+        if not current:
+            take = True
+        elif point > current["point"]:
+            take = True
+        elif point == current["point"]:
+            if better_price(price, current["price"]):
+                take = True
+            else:
+                current_priority = BOOK_PRIORITY.index(current["book"]) if current["book"] in BOOK_PRIORITY else 999
+                new_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
+                if new_priority < current_priority:
+                    take = True
+        if take:
+            best["total"]["under"] = {
+                "point": point,
+                "price": price,
+                "book": book_title,
+                "deeplink": deeplink
+            }
 
         # ---------- Game time ----------
         game_time_utc = game.get("commence_time")
