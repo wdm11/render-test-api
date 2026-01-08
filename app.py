@@ -213,8 +213,14 @@ def league_summary(league: str):
                         take = False
                         if not current:
                             take = True
-                        elif abs(point) < abs(current["point"]):
-                            take = True
+                        elif point > 0 and current["point"] > 0:
+                            # Underdog: higher number is better (+3.5 > +3)
+                            if point > current["point"]:
+                                take = True
+                            elif point < 0 and current["point"] < 0:
+                            # Favorite: closer to zero is better (-3 > -3.5)
+                            if abs(point) < abs(current["point"]):
+                                take = True
                         elif abs(point) == abs(current["point"]):
                             if better_price(price, current["price"]):
                                 take = True
