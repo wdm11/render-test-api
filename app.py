@@ -105,7 +105,7 @@ def get_previous_snapshot(game_id, market, side):
           AND market = ?
           AND side = ?
         ORDER BY timestamp DESC
-        LIMIT 1 OFFSET 1
+        LIMIT 1 OFFSET 0
         """,
         (game_id, market, side)
     )
@@ -287,6 +287,8 @@ def league_summary(league: str):
                                     "deeplink": deeplink
                                 }
 
+        game_id = game.get("id")
+        
         # ---------- MOVEMENT + SNAPSHOTS ----------
 
         # Spreads
