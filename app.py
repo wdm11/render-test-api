@@ -110,8 +110,9 @@ def league_summary(league: str):
         best = {"spread": {}, "moneyline": {}, "total": {"over": None, "under": None}}
 
         # Game info
-        home = game.get("home_team")
-        away = game.get("away_team")
+        team = normalize_team(outcome.get("name"))
+        home = normalize_team(game.get("home_team"))
+        away = normalize_team(game.get("away_team"))
         game_time_utc = game.get("commence_time")
         if game_time_utc:
             game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
