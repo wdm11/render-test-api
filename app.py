@@ -105,7 +105,7 @@ def get_previous_snapshot(game_id, market, side):
           AND market = ?
           AND side = ?
         ORDER BY timestamp DESC
-        LIMIT 1 OFFSET 0
+        LIMIT 1 OFFSET 1
         """,
         (game_id, market, side)
     )
@@ -114,19 +114,35 @@ def get_previous_snapshot(game_id, market, side):
  
 def compute_movement(current, previous):
     if not current or not previous:
-        return None
- 
-    prev_point, prev_price, prev_book = previous
- 
+        return {
+            "has_movement": False,
+            "point_move": 0,
+            "price_move": 0,
+            "direction": None
+        }
+
+    prev_point, prev_price, _ = previous
+
+    point_move = (
+        round(current["point"] - prev_point, 2)
+        if current.get("point") is not None and prev_point is not None
+        else 0
+    )
+
+    price_move = current["price"] - prev_price if prev_price is not None else 0
+
+    if point_move > 0 or price_move > 0:
+        direction = "up"
+    elif point_move < 0 or price_move < 0:
+        direction = "down"
+    else:
+        direction = None
+
     return {
-        "point_move": (
-            round(current["point"] - prev_point, 2)
-            if current.get("point") is not None and prev_point is not None
-            else None
-        ),
-        "price_move": current["price"] - prev_price,
-        "from_book": prev_book,
-        "to_book": current["book"]
+        "has_movement": point_move != 0 or price_move != 0,
+        "point_move": point_move,
+        "price_move": price_move,
+        "direction": direction
     }
  
 # ---------- ENDPOINT ----------
