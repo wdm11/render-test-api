@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 import os
 import requests
-from statistics import mean
 from datetime import datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
+import sqlite3
 
 app = FastAPI()
 
@@ -32,18 +32,6 @@ ALLOWED_BOOKS = {
 }
 
 BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
-
-def moneyline_value(odds):
-    """
-    Normalize American moneyline so higher is always better.
-    +X: higher is better
-    -X: closer to zero is better
-    """
-    if odds > 0:
-        return odds
-    else:
-        return 100 / abs(odds) * 100
-
 
 def better_price(new_price, current_price):
     """
