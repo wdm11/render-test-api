@@ -286,7 +286,38 @@ def league_summary(league: str):
                                     "book": book_title,
                                     "deeplink": deeplink
                                 }
- 
+
+        # ---------- MOVEMENT + SNAPSHOTS ----------
+
+        # Spreads
+        for team, line in best["spread"].items():
+            previous = get_previous_snapshot(game_id, "spread", team)
+            movement = compute_movement(line, previous)
+            line["movement"] = movement
+            save_snapshot(game_id, "spread", team, line)
+
+        # Moneyline
+        for team, line in best["moneyline"].items():
+            previous = get_previous_snapshot(game_id, "moneyline", team)
+            movement = compute_movement(line, previous)
+            line["movement"] = movement
+            save_snapshot(game_id, "moneyline", team, line)
+
+        # Totals
+        if best["total"]["over"]:
+            previous = get_previous_snapshot(game_id, "total", "Over")
+            best["total"]["over"]["movement"] = compute_movement(
+                best["total"]["over"], previous
+            )
+            save_snapshot(game_id, "total", "Over", best["total"]["over"])
+
+        if best["total"]["under"]:
+            previous = get_previous_snapshot(game_id, "total", "Under")
+            best["total"]["under"]["movement"] = compute_movement(
+                best["total"]["under"], previous
+            )
+            save_snapshot(game_id, "total", "Under", best["total"]["under"])
+    
         summary.append({
             "game_id": game.get("id"),
             "teams": {"home": home, "away": away},
