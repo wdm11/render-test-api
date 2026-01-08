@@ -152,6 +152,10 @@ def league_summary(league: str):
     games = r.json()
     summary = []
 
+    local_tz = ZoneInfo("America/Chicago")
+    generated_at = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
+    formatted_time = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
+
     for game in games:
         best = {
             "spread": {},
@@ -161,6 +165,12 @@ def league_summary(league: str):
 
         home = game.get("home_team")
         away = game.get("away_team")
+        game_time_utc = game.get("commence_time")
+        if game_time_utc:
+            game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
+            formatted_game_time = game_dt.strftime("%Y-%m-%d %I:%M %p %Z")
+        else:
+            formatted_game_time = "Unknown"
 
         # ---------- BUILD BEST LINES ----------
         for book in game.get("bookmakers", []):
