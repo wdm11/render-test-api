@@ -215,18 +215,20 @@ def league_summary(league: str):
                         if not current:
                             take = True
                     
-                        # Underdog: higher number is better (+3.5 > +3)
-                        elif point > 0 and current["point"] > 0:
-                            if point > current["point"]:
-                                take = True
+                        # Better spread always wins
+                        elif point != current["point"]:
+                            # Underdog: higher number is better (+3.5 > +3)
+                            if point > 0 and current["point"] > 0:
+                                if point > current["point"]:
+                                    take = True
                     
-                        # Favorite: closer to zero is better (-3 > -3.5)
-                        elif point < 0 and current["point"] < 0:
-                            if abs(point) < abs(current["point"]):
-                                take = True
+                            # Favorite: closer to zero is better (-3 > -3.5)
+                            elif point < 0 and current["point"] < 0:
+                                if abs(point) < abs(current["point"]):
+                                    take = True
                     
                         # Same spread → compare price
-                        elif point == current["point"]:
+                        else:
                             if better_price(price, current["price"]):
                                 take = True
                             elif price == current["price"]:
