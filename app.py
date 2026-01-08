@@ -33,6 +33,15 @@ ALLOWED_BOOKS = {
 
 BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
 
+def normalize_team(name):
+    # Remove extra spaces
+    name = name.strip()
+    # Standardize 'St' → 'State'
+    if name.endswith(" St"):
+        name = name[:-3] + " State"
+    # Remove periods
+    name = name.replace(".", "")
+    return name
 
 def moneyline_value(odds):
     """
