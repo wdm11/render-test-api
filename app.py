@@ -116,31 +116,46 @@ def compute_movement(current, previous, market):
     if not current or not previous:
         return "➖ No change"
 
-    prev_point, prev_price, _ = previous
+    prev_point, prev_price, prev_book = previous
 
     point_move = 0
     price_move = 0
+    book_move = False
 
+    # Point movement (spread / total only)
     if market in ("spread", "total"):
         if current.get("point") is not None and prev_point is not None:
             point_move = round(current["point"] - prev_point, 2)
 
+    # Price movement
     if prev_price is not None and current.get("price") is not None:
         price_move = current["price"] - prev_price
 
-    if point_move == 0 and price_move == 0:
+    # Book movement (THIS WAS MISSING)
+    if prev_book is not None and current.get("book") is not None:
+        if current["book"] != prev_book:
+            book_move = True
+
+    # True no-change condition
+    if point_move == 0 and price_move == 0 and not book_move:
         return "➖ No change"
 
+    # Direction emoji (price OR point improvement)
     emoji = "📈" if (point_move > 0 or price_move > 0) else "📉"
 
     parts = []
+
     if point_move != 0:
         parts.append(f"{'+' if point_move > 0 else ''}{point_move} pts")
+
     if price_move != 0:
         parts.append(f"{'+' if price_move > 0 else ''}{price_move}¢")
 
+    if book_move:
+        parts.append(f"{prev_book} → {current['book']}")
+
     return f"{emoji} " + " / ".join(parts)
-        
+      
         
 # ---------- ENDPOINT ----------
 @app.get("/league-summary")
