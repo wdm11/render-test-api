@@ -105,7 +105,7 @@ def get_previous_snapshot(game_id, market, side):
           AND market = ?
           AND side = ?
         ORDER BY timestamp DESC
-        LIMIT 1 OFFSET 0
+        LIMIT 1 OFFSET 1
         """,
         (game_id, market, side)
     )
