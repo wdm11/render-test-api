@@ -313,7 +313,7 @@ def league_summary(league: str):
                                     "deeplink": deeplink
                                 }
 
-        game_id = game.get("id")
+        game_id = f"{home}__{away}__{game_time_utc}"
         
         # ---------- MOVEMENT + SNAPSHOTS ----------
 
