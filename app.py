@@ -114,7 +114,7 @@ def get_previous_snapshot(game_id, market, side):
 
 def compute_movement(current, previous, market):
     if not current or not previous:
-        return ""
+        return "➖ No change"
 
     prev_point, prev_price, _ = previous
 
@@ -129,7 +129,7 @@ def compute_movement(current, previous, market):
         price_move = current["price"] - prev_price
 
     if point_move == 0 and price_move == 0:
-        return ""
+        return "➖ No change"
 
     emoji = "📈" if (point_move > 0 or price_move > 0) else "📉"
 
