@@ -111,40 +111,7 @@ def get_previous_snapshot(game_id, market, side):
     )
     return cursor.fetchone()
  
- 
-def compute_movement(current, previous):
-    if not current or not previous:
-        return {
-            "has_movement": False,
-            "point_move": 0,
-            "price_move": 0,
-            "direction": None
-        }
 
-    prev_point, prev_price, _ = previous
-
-    point_move = (
-        round(current["point"] - prev_point, 2)
-        if current.get("point") is not None and prev_point is not None
-        else 0
-    )
-
-    price_move = current["price"] - prev_price if prev_price is not None else 0
-
-    if point_move > 0 or price_move > 0:
-        direction = "up"
-    elif point_move < 0 or price_move < 0:
-        direction = "down"
-    else:
-        direction = None
-
-    return {
-        "has_movement": point_move != 0 or price_move != 0,
-        "point_move": point_move,
-        "price_move": price_move,
-        "direction": direction
-    }
- 
 def compute_movement_all(current, previous, market, side):
     """
     Tracks all relevant movement:
@@ -200,20 +167,28 @@ def compute_movement_all(current, previous, market, side):
         "summary": ", ".join(parts)
     }
     
-def build_note_line(team_or_total, line):
-    """
-    Builds a readable note for Shortcuts
-    """
-    # Line base
-    base = f"{team_or_total} {line.get('point', '')}".strip()
-    price = f"({line['price']})" if line.get("price") is not None else ""
-    book = f"— {line['book']}"
+def build_movement_note(movement):
+    if not movement or not movement.get("has_movement"):
+        return ""
 
-    movement = line.get("movement", {})
-    if movement.get("has_movement"):
-        return f"{base} {price} {book} {movement['emoji']} {movement['summary']}"
+    parts = []
+
+    if movement["direction"] == "up":
+        emoji = "📈"
+    elif movement["direction"] == "down":
+        emoji = "📉"
     else:
-        return f"{base} {price} {book}"
+        return ""
+
+    if movement.get("point_move"):
+        sign = "+" if movement["point_move"] > 0 else ""
+        parts.append(f"{sign}{movement['point_move']} pts")
+
+    if movement.get("price_move"):
+        sign = "+" if movement["price_move"] > 0 else ""
+        parts.append(f"{sign}{movement['price_move']}¢")
+
+    return f"{emoji} " + " / ".join(parts)
         
         
 # ---------- ENDPOINT ----------
@@ -379,33 +354,32 @@ def league_summary(league: str):
         # Spreads
         for team, line in best["spread"].items():
             previous = get_previous_snapshot(game_id, "spread", team)
-            movement = compute_movement_all(line, previous, "spread", team)
+            movement = compute_movement(line, previous)
             line["movement"] = movement
-            line["note"] = build_note_line(team, line)
+            line["note"] = build_movement_note(movement)
             save_snapshot(game_id, "spread", team, line)
         
         # Moneyline
         for team, line in best["moneyline"].items():
             previous = get_previous_snapshot(game_id, "moneyline", team)
-            movement = compute_movement_all(line, previous, "moneyline", team)
+            movement = compute_movement(line, previous)
             line["movement"] = movement
-            line["note"] = build_note_line(team, line)
+            line["note"] = build_movement_note(movement)
             save_snapshot(game_id, "moneyline", team, line)
         
         # Totals
         if best["total"]["over"]:
             previous = get_previous_snapshot(game_id, "total", "Over")
-            movement = compute_movement_all(best["total"]["over"], previous, "total", "Over")
+            movement = compute_movement(best["total"]["over"], previous)
             best["total"]["over"]["movement"] = movement
-            best["total"]["over"]["note"] = build_note_line("Over", best["total"]["over"])
+            best["total"]["over"]["note"] = build_movement_note(movement)
             save_snapshot(game_id, "total", "Over", best["total"]["over"])
 
         if best["total"]["under"]:
-            previous = get_previous_snapshot(game_id, "total", "Under")
-            movement = compute_movement_all(best["total"]["under"], previous, "total", "Under")
+            movement = compute_movement(best["total"]["under"], previous)
             best["total"]["under"]["movement"] = movement
-            best["total"]["under"]["note"] = build_note_line("Under", best["total"]["under"])
-            save_snapshot(game_id, "total", "Under", best["total"]["under"])    
+            best["total"]["under"]["note"] = build_movement_note(movement)
+            save_snapshot(game_id, "total", "Under", best["total"]["under"])
         
         summary.append({
             "game_id": game.get("id"),
