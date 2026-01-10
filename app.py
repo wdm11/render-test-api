@@ -67,25 +67,28 @@ def save_snapshot(game_id, market, side, line):
         print("Supabase insert error:", e)
 
 def get_previous_snapshot(game_id, market, side):
-    supabase = get_supabase_client()
-    response = (
-        supabase.table("line_snapshots")
-        .select("point, price, book")
-        .eq("game_id", game_id)
-        .eq("market", market)
-        .eq("side", side)
-        .order("timestamp", desc=True)
-        .limit(2)   # get latest TWO rows
-        .execute()
-    )
+    try:
+        supabase = get_supabase_client()
+        response = (
+            supabase.table("line_snapshots")
+            .select("point, price, book")
+            .eq("game_id", game_id)
+            .eq("market", market)
+            .eq("side", side)
+            .order("timestamp", desc=True)
+            .limit(2)
+            .execute()
+        )
 
-    data = response.data
+        data = response.data or []
 
-    # data[0] = most recent (current)
-    # data[1] = previous (what we want)
-    if data and len(data) > 1:
-        row = data[1]
-        return row.get("point"), row.get("price"), row.get("book")
+        # We want the second most recent row
+        if len(data) >= 2:
+            row = data[1]
+            return row["point"], row["price"], row["book"]
+
+    except Exception as e:
+        print("Supabase history error:", e)
 
     return None, None, None
 
