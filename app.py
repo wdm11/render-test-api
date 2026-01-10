@@ -67,26 +67,29 @@ def save_snapshot(game_id, market, side, line):
         print("Supabase insert error:", e)
 
 def get_previous_snapshot(game_id, market, side):
-    supabase = get_supabase_client()
+    try:
+        supabase = get_supabase_client()
 
-    response = (
-        supabase.table("line_snapshots")
-        .select("id, point, price, book")
-        .eq("game_id", game_id)
-        .eq("market", market)
-        .eq("side", side)
-        .order("id", desc=True)
-        .limit(2)
-        .execute()
-    )
+        response = (
+            supabase.table("line_snapshots")
+            .select("id, point, price, book")
+            .eq("game_id", game_id)
+            .eq("market", market)
+            .eq("side", side)
+            .order("id", desc=True)
+            .limit(2)
+            .execute()
+        )
 
-    rows = response.data or []
+        rows = response.data
 
-    # rows[0] = most recent
-    # rows[1] = true previous run
-    if len(rows) >= 2:
-        r = rows[1]
-        return r["point"], r["price"], r["book"]
+        if rows and len(rows) >= 2:
+            r = rows[1]  # true previous snapshot
+            return r["point"], r["price"], r["book"]
+
+    except Exception as e:
+        # Log it but never break the API response
+        print("Snapshot lookup error:", e)
 
     return None, None, None
 
