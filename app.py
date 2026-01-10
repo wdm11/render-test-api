@@ -5,19 +5,12 @@ from statistics import mean
 from datetime import datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
 from supabase import create_client, Client
-import os
- 
-app = FastAPI()
- 
-# ---------- DATABASE ----------
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
- 
+app = FastAPI()
+
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
- 
+
 SPORT_MAP = {
     "NFL": "americanfootball_nfl",
     "NCAAF": "americanfootball_ncaaf",
@@ -29,9 +22,9 @@ SPORT_MAP = {
     "EPL": "soccer_epl",
     "UFC": "mma_mixed_martial_arts"
 }
- 
+
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
- 
+
 ALLOWED_BOOKS = {
     "DraftKings": {"key": "draftkings", "deeplink": "https://sportsbook.draftkings.com"},
     "FanDuel": {"key": "fanduel", "deeplink": "https://sportsbook.fanduel.com"},
@@ -39,16 +32,16 @@ ALLOWED_BOOKS = {
     "Caesars": {"key": "caesars", "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"},
     "bet365": {"key": "bet365", "deeplink": "shortcuts://run-shortcut?name=Open_bet365"}
 }
- 
+
 BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
- 
+
 # ---------- HELPERS ----------
+def get_supabase_client() -> Client:
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
 def better_price(new_price, current_price):
-    """
-    Higher numeric value is always better.
-    +250 > +150
-    -150 > -250
-    """
     if current_price is None:
         return True
     if new_price > 0 and current_price > 0:
@@ -58,23 +51,22 @@ def better_price(new_price, current_price):
     if new_price > 0 and current_price < 0:
         return True
     return False
- 
- 
+
 def save_snapshot(game_id, market, side, line):
     if not line:
         return
-
+    supabase = get_supabase_client()
     supabase.table("line_snapshots").insert({
         "game_id": game_id,
         "market": market,
         "side": side,
         "point": line.get("point"),
         "price": line.get("price"),
-        "book": line.get("book"),
+        "book": line.get("book")
     }).execute()
- 
- 
+
 def get_previous_snapshot(game_id, market, side):
+    supabase = get_supabase_client()
     response = (
         supabase.table("line_snapshots")
         .select("point, price, book")
@@ -89,62 +81,45 @@ def get_previous_snapshot(game_id, market, side):
     if data:
         return data[0]["point"], data[0]["price"], data[0]["book"]
     return None
- 
 
 def compute_movement(current, previous, market):
     if not current or not previous:
         return "➖ No change"
 
     prev_point, prev_price, prev_book = previous
-
     point_move = 0
     price_move = 0
     book_move = False
 
-    # Point movement (spread / total only)
     if market in ("spread", "total"):
         if current.get("point") is not None and prev_point is not None:
             point_move = round(current["point"] - prev_point, 2)
-
-    # Price movement
     if prev_price is not None and current.get("price") is not None:
         price_move = current["price"] - prev_price
-
-    # Book movement (THIS WAS MISSING)
     if prev_book is not None and current.get("book") is not None:
         if current["book"] != prev_book:
             book_move = True
-
-    # True no-change condition
     if point_move == 0 and price_move == 0 and not book_move:
         return "➖ No change"
-
-    # Direction emoji (price OR point improvement)
     emoji = "📈" if (point_move > 0 or price_move > 0) else "📉"
-
     parts = []
-
     if point_move != 0:
         parts.append(f"{'+' if point_move > 0 else ''}{point_move} pts")
-
     if price_move != 0:
         parts.append(f"{'+' if price_move > 0 else ''}{price_move}¢")
-
     if book_move:
         parts.append(f"{prev_book} → {current['book']}")
-
     return f"{emoji} " + " / ".join(parts)
-      
-        
+
 # ---------- ENDPOINT ----------
 @app.get("/league-summary")
 def league_summary(league: str):
     league = league.upper()
     if league not in SPORT_MAP:
         return {"error": f"Invalid league '{league}'"}
- 
+
     sport = SPORT_MAP[league]
- 
+
     try:
         r = requests.get(
             f"{BASE_URL}/{sport}/odds",
@@ -158,74 +133,55 @@ def league_summary(league: str):
         )
         r.raise_for_status()
     except requests.RequestException as e:
-        return {"error": " Odds API error ", "details": str(e)}
- 
+        return {"error": "Odds API error", "details": str(e)}
+
     games = r.json()
     summary = []
- 
-    summary = []
+
     local_tz = ZoneInfo("America/Chicago")
     generated_at = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
     formatted_time = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
- 
+
     for game in games:
         best = {"spread": {}, "moneyline": {}, "total": {"over": None, "under": None}}
- 
-        # Game info
         home = game.get("home_team")
         away = game.get("away_team")
         game_time_utc = game.get("commence_time")
+        formatted_game_time = "Unknown"
         if game_time_utc:
             game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
             formatted_game_time = game_dt.strftime("%Y-%m-%d %I:%M %p %Z")
-        else:
-            formatted_game_time = "Unknown"
-               
-                # ---------- BUILD BEST LINES ----------
+
         for book in game.get("bookmakers", []):
             book_title = book.get("title")
             if book_title not in ALLOWED_BOOKS:
                 continue
- 
             deeplink = ALLOWED_BOOKS[book_title]["deeplink"]
             book_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
- 
+
             for market in book.get("markets", []):
                 key = market.get("key")
- 
                 for outcome in market.get("outcomes", []):
                     team = outcome.get("name")
                     point = outcome.get("point")
                     price = outcome.get("price")
- 
-                    # ---------- SPREADS ----------
+
+                    # SPREAD
                     if key == "spreads":
                         current = best["spread"].get(team)
                         take = False
-                    
                         if not current:
                             take = True
-                    
-                        # Better spread always wins
                         elif point != current["point"]:
-                            # Underdog: higher number is better (+3.5 > +3)
-                            if point > 0 and current["point"] > 0:
-                                if point > current["point"]:
-                                    take = True
-                    
-                            # Favorite: closer to zero is better (-3 > -3.5)
-                            elif point < 0 and current["point"] < 0:
-                                if abs(point) < abs(current["point"]):
-                                    take = True
-                    
-                        # Same spread → compare price
+                            if point > 0 and current["point"] > 0 and point > current["point"]:
+                                take = True
+                            elif point < 0 and current["point"] < 0 and abs(point) < abs(current["point"]):
+                                take = True
                         else:
                             if better_price(price, current["price"]):
                                 take = True
-                            elif price == current["price"]:
-                                if book_priority < BOOK_PRIORITY.index(current["book"]):
-                                    take = True
-                    
+                            elif price == current["price"] and book_priority < BOOK_PRIORITY.index(current["book"]):
+                                take = True
                         if take:
                             best["spread"][team] = {
                                 "point": point,
@@ -233,8 +189,8 @@ def league_summary(league: str):
                                 "book": book_title,
                                 "deeplink": deeplink
                             }
- 
-                    # ---------- MONEYLINE ----------
+
+                    # MONEYLINE
                     elif key == "h2h":
                         current = best["moneyline"].get(team)
                         take = False
@@ -242,17 +198,16 @@ def league_summary(league: str):
                             take = True
                         elif better_price(price, current["price"]):
                             take = True
-                        elif price == current["price"]:
-                            if book_priority < BOOK_PRIORITY.index(current["book"]):
-                                take = True
+                        elif price == current["price"] and book_priority < BOOK_PRIORITY.index(current["book"]):
+                            take = True
                         if take:
                             best["moneyline"][team] = {
                                 "price": price,
                                 "book": book_title,
                                 "deeplink": deeplink
                             }
- 
-                    # ---------- TOTALS ----------
+
+                    # TOTALS
                     elif key == "totals":
                         if team == "Over":
                             current = best["total"]["over"]
@@ -262,9 +217,8 @@ def league_summary(league: str):
                             elif point == current["point"]:
                                 if better_price(price, current["price"]):
                                     take = True
-                                elif price == current["price"]:
-                                    if book_priority < BOOK_PRIORITY.index(current["book"]):
-                                        take = True
+                                elif price == current["price"] and book_priority < BOOK_PRIORITY.index(current["book"]):
+                                    take = True
                             if take:
                                 best["total"]["over"] = {
                                     "point": point,
@@ -272,7 +226,6 @@ def league_summary(league: str):
                                     "book": book_title,
                                     "deeplink": deeplink
                                 }
- 
                         elif team == "Under":
                             current = best["total"]["under"]
                             take = False
@@ -281,9 +234,8 @@ def league_summary(league: str):
                             elif point == current["point"]:
                                 if better_price(price, current["price"]):
                                     take = True
-                                elif price == current["price"]:
-                                    if book_priority < BOOK_PRIORITY.index(current["book"]):
-                                        take = True
+                                elif price == current["price"] and book_priority < BOOK_PRIORITY.index(current["book"]):
+                                    take = True
                             if take:
                                 best["total"]["under"] = {
                                     "point": point,
@@ -293,43 +245,35 @@ def league_summary(league: str):
                                 }
 
         game_id = f"{home}__{away}__{game_time_utc}"
-        
-        # ---------- MOVEMENT + SNAPSHOTS ----------
 
-        # Spreads
+        # MOVEMENT + SNAPSHOTS
         for team, line in best["spread"].items():
             previous = get_previous_snapshot(game_id, "spread", team)
-            movement = compute_movement(line, previous, "spread")
-            line["note"] = movement
+            line["note"] = compute_movement(line, previous, "spread")
             save_snapshot(game_id, "spread", team, line)
-        
-        # Moneyline
+
         for team, line in best["moneyline"].items():
             previous = get_previous_snapshot(game_id, "moneyline", team)
-            movement = compute_movement(line, previous, "moneyline")
-            line["note"] = movement
+            line["note"] = compute_movement(line, previous, "moneyline")
             save_snapshot(game_id, "moneyline", team, line)
-        
-        # Totals
+
         if best["total"]["over"]:
             previous = get_previous_snapshot(game_id, "total", "Over")
-            movement = compute_movement(best["total"]["over"], previous, "total")
-            best["total"]["over"]["note"] = movement
+            best["total"]["over"]["note"] = compute_movement(best["total"]["over"], previous, "total")
             save_snapshot(game_id, "total", "Over", best["total"]["over"])
 
         if best["total"]["under"]:
             previous = get_previous_snapshot(game_id, "total", "Under")
-            movement = compute_movement(best["total"]["under"], previous, "total")
-            best["total"]["under"]["note"] = movement
+            best["total"]["under"]["note"] = compute_movement(best["total"]["under"], previous, "total")
             save_snapshot(game_id, "total", "Under", best["total"]["under"])
-        
+
         summary.append({
-            "game_id": game.get("id"),
+            "game_id": game_id,
             "teams": {"home": home, "away": away},
             "game_time": formatted_game_time,
             "best_lines": best
         })
- 
+
     return {
         "league": league,
         "generated_at": formatted_time,
