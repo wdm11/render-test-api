@@ -72,24 +72,22 @@ def get_previous_snapshot(game_id, market, side):
 
         response = (
             supabase.table("line_snapshots")
-            .select("id, point, price, book")
+            .select("point, price, book")
             .eq("game_id", game_id)
             .eq("market", market)
             .eq("side", side)
             .order("id", desc=True)
-            .limit(2)
+            .range(1, 1)   # <-- this is the key: true previous row
             .execute()
         )
 
-        rows = response.data
-
-        if rows and len(rows) >= 2:
-            r = rows[1]  # true previous snapshot
-            return r["point"], r["price"], r["book"]
+        data = response.data
+        if data and len(data) == 1:
+            row = data[0]
+            return row["point"], row["price"], row["book"]
 
     except Exception as e:
-        # Log it but never break the API response
-        print("Snapshot lookup error:", e)
+        print("Previous snapshot error:", e)
 
     return None, None, None
 
