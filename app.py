@@ -78,12 +78,14 @@ def get_previous_snapshot(game_id, market, side):
         .execute()
     )
     data = response.data
-    if data:
-        return data[0]["point"], data[0]["price"], data[0]["book"]
-    return None
+    if data and len(data) > 0:
+        return data[0].get("point"), data[0].get("price"), data[0].get("book")
+    return None, None, None
 
 def compute_movement(current, previous, market):
-    if not current or not previous:
+    if not current:
+        return "➖ No change"
+    if not previous:
         return "➖ No change"
 
     prev_point, prev_price, prev_book = previous
@@ -94,21 +96,28 @@ def compute_movement(current, previous, market):
     if market in ("spread", "total"):
         if current.get("point") is not None and prev_point is not None:
             point_move = round(current["point"] - prev_point, 2)
+
     if prev_price is not None and current.get("price") is not None:
         price_move = current["price"] - prev_price
+
     if prev_book is not None and current.get("book") is not None:
         if current["book"] != prev_book:
             book_move = True
+
+    # Always return a string
     if point_move == 0 and price_move == 0 and not book_move:
         return "➖ No change"
+
     emoji = "📈" if (point_move > 0 or price_move > 0) else "📉"
     parts = []
+
     if point_move != 0:
         parts.append(f"{'+' if point_move > 0 else ''}{point_move} pts")
     if price_move != 0:
         parts.append(f"{'+' if price_move > 0 else ''}{price_move}¢")
     if book_move:
         parts.append(f"{prev_book} → {current['book']}")
+
     return f"{emoji} " + " / ".join(parts)
 
 # ---------- ENDPOINT ----------
