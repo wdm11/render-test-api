@@ -67,28 +67,26 @@ def save_snapshot(game_id, market, side, line):
         print("Supabase insert error:", e)
 
 def get_previous_snapshot(game_id, market, side):
-    try:
-        supabase = get_supabase_client()
-        response = (
-            supabase.table("line_snapshots")
-            .select("point, price, book")
-            .eq("game_id", game_id)
-            .eq("market", market)
-            .eq("side", side)
-            .order("id", desc=True)   # <-- CHANGE IS HERE
-            .limit(2)
-            .execute()
-        )
+    supabase = get_supabase_client()
 
-        data = response.data or []
+    response = (
+        supabase.table("line_snapshots")
+        .select("id, point, price, book")
+        .eq("game_id", game_id)
+        .eq("market", market)
+        .eq("side", side)
+        .order("id", desc=True)
+        .limit(2)
+        .execute()
+    )
 
-        # data[0] = most recent, data[1] = previous
-        if len(data) >= 2:
-            row = data[1]
-            return row["point"], row["price"], row["book"]
+    rows = response.data or []
 
-    except Exception as e:
-        print("Supabase history error:", e)
+    # rows[0] = most recent
+    # rows[1] = true previous run
+    if len(rows) >= 2:
+        r = rows[1]
+        return r["point"], r["price"], r["book"]
 
     return None, None, None
 
