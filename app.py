@@ -4,18 +4,16 @@ import requests
 from statistics import mean
 from datetime import datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
-import psycopg2
+from supabase import create_client, Client
+import os
  
 app = FastAPI()
  
 # ---------- DATABASE ----------
-SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def get_db():
-    conn = psycopg2.connect(SUPABASE_DB_URL)
-    return conn, conn.cursor()
-
-conn, cursor = get_db()
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
  
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
@@ -66,38 +64,31 @@ def save_snapshot(game_id, market, side, line):
     if not line:
         return
 
-    cursor.execute(
-        """
-        INSERT INTO line_snapshots
-        (game_id, market, side, point, price, book)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """,
-        (
-            game_id,
-            market,
-            side,
-            line.get("point"),
-            line.get("price"),
-            line.get("book")
-        )
-    )
-    conn.commit()
+    supabase.table("line_snapshots").insert({
+        "game_id": game_id,
+        "market": market,
+        "side": side,
+        "point": line.get("point"),
+        "price": line.get("price"),
+        "book": line.get("book"),
+    }).execute()
  
  
 def get_previous_snapshot(game_id, market, side):
-    cursor.execute(
-        """
-        SELECT point, price, book
-        FROM line_snapshots
-        WHERE game_id = %s
-          AND market = %s
-          AND side = %s
-        ORDER BY timestamp DESC
-        LIMIT 1
-        """,
-        (game_id, market, side)
+    response = (
+        supabase.table("line_snapshots")
+        .select("point, price, book")
+        .eq("game_id", game_id)
+        .eq("market", market)
+        .eq("side", side)
+        .order("timestamp", desc=True)
+        .limit(1)
+        .execute()
     )
-    return cursor.fetchone()
+    data = response.data
+    if data:
+        return data[0]["point"], data[0]["price"], data[0]["book"]
+    return None
  
 
 def compute_movement(current, previous, market):
