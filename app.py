@@ -4,29 +4,15 @@ import requests
 from statistics import mean
 from datetime import datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
-import sqlite3
+import psycopg2
  
 app = FastAPI()
  
 # ---------- DATABASE ----------
-DB_PATH = "lines.db"
- 
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+
+conn = psycopg2.connect(SUPABASE_DB_URL)
 cursor = conn.cursor()
- 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS line_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id TEXT NOT NULL,
-    market TEXT NOT NULL,
-    side TEXT NOT NULL,
-    point REAL,
-    price INTEGER,
-    book TEXT,
-    timestamp TEXT
-)
-""")
-conn.commit()
  
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
@@ -76,12 +62,12 @@ def better_price(new_price, current_price):
 def save_snapshot(game_id, market, side, line):
     if not line:
         return
- 
+
     cursor.execute(
         """
         INSERT INTO line_snapshots
-        (game_id, market, side, point, price, book, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (game_id, market, side, point, price, book)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """,
         (
             game_id,
@@ -89,8 +75,7 @@ def save_snapshot(game_id, market, side, line):
             side,
             line.get("point"),
             line.get("price"),
-            line.get("book"),
-            datetime.utcnow().isoformat()
+            line.get("book")
         )
     )
     conn.commit()
@@ -101,11 +86,11 @@ def get_previous_snapshot(game_id, market, side):
         """
         SELECT point, price, book
         FROM line_snapshots
-        WHERE game_id = ?
-          AND market = ?
-          AND side = ?
+        WHERE game_id = %s
+          AND market = %s
+          AND side = %s
         ORDER BY timestamp DESC
-        LIMIT 1 OFFSET 1
+        OFFSET 1 LIMIT 1
         """,
         (game_id, market, side)
     )
