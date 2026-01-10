@@ -75,14 +75,14 @@ def get_previous_snapshot(game_id, market, side):
             .eq("game_id", game_id)
             .eq("market", market)
             .eq("side", side)
-            .order("timestamp", desc=True)
+            .order("id", desc=True)   # <-- CHANGE IS HERE
             .limit(2)
             .execute()
         )
 
         data = response.data or []
 
-        # We want the second most recent row
+        # data[0] = most recent, data[1] = previous
         if len(data) >= 2:
             row = data[1]
             return row["point"], row["price"], row["book"]
