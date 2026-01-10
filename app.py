@@ -11,8 +11,11 @@ app = FastAPI()
 # ---------- DATABASE ----------
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 
-conn = psycopg2.connect(SUPABASE_DB_URL)
-cursor = conn.cursor()
+def get_db():
+    conn = psycopg2.connect(SUPABASE_DB_URL)
+    return conn, conn.cursor()
+
+conn, cursor = get_db()
  
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
