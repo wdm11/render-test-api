@@ -75,12 +75,18 @@ def get_previous_snapshot(game_id, market, side):
         .eq("market", market)
         .eq("side", side)
         .order("timestamp", desc=True)
-        .range(1, 1)   # <-- THIS IS THE FIX (skip latest, get previous)
+        .limit(2)   # get latest TWO rows
         .execute()
     )
+
     data = response.data
-    if data and len(data) > 0:
-        return data[0].get("point"), data[0].get("price"), data[0].get("book")
+
+    # data[0] = most recent (current)
+    # data[1] = previous (what we want)
+    if data and len(data) > 1:
+        row = data[1]
+        return row.get("point"), row.get("price"), row.get("book")
+
     return None, None, None
 
 def compute_movement(current, previous, market):
