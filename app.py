@@ -9,23 +9,27 @@ from supabase import create_client, Client
 app = FastAPI()
 
 # ---------- DATABASE (SUPABASE VERSION) ----------
+# At the top, create one global client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def save_snapshot(supabase, game_id, market, side, line):
+def save_snapshot(game_id, market, side, line):
     if not line:
         return
-    supabase.table("line_snapshots").insert({
-        "game_id": game_id,
-        "market": market,
-        "side": side,
-        "point": line.get("point"),
-        "price": line.get("price"),
-        "book": line.get("book")
-    }).execute()
+    try:
+        supabase.table("line_snapshots").insert({
+            "game_id": game_id,
+            "market": market,
+            "side": side,
+            "point": line.get("point"),
+            "price": line.get("price"),
+            "book": line.get("book")
+        }).execute()
+    except Exception as e:
+        print(f"Supabase save_snapshot error: {e}")
 
-def get_previous_snapshot(supabase, game_id, market, side):
+def get_previous_snapshot(game_id, market, side):
     try:
         response = (
             supabase.table("line_snapshots")
