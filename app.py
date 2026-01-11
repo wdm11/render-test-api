@@ -9,27 +9,23 @@ from supabase import create_client, Client
 app = FastAPI()
 
 # ---------- DATABASE (SUPABASE VERSION) ----------
-def get_supabase_client() -> Client:
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def save_snapshot(game_id, market, side, line):
+def save_snapshot(supabase, game_id, market, side, line):
     if not line:
         return
-    supabase = get_supabase_client()
     supabase.table("line_snapshots").insert({
         "game_id": game_id,
         "market": market,
         "side": side,
         "point": line.get("point"),
         "price": line.get("price"),
-        "book": line.get("book"),
-        "timestamp": datetime.utcnow().isoformat()
+        "book": line.get("book")
     }).execute()
 
-def get_previous_snapshot(game_id, market, side):
-    supabase = get_supabase_client()
+def get_previous_snapshot(supabase, game_id, market, side):
     response = (
         supabase.table("line_snapshots")
         .select("point, price, book")
@@ -37,14 +33,14 @@ def get_previous_snapshot(game_id, market, side):
         .eq("market", market)
         .eq("side", side)
         .order("timestamp", desc=True)
-        .limit(2)  # get last two snapshots
+        .limit(1)
         .execute()
     )
     data = response.data
-    if data and len(data) > 1:
-        prev = data[1]  # second-to-last snapshot
+    if data and len(data) > 0:
+        prev = data[0]
         return prev.get("point"), prev.get("price"), prev.get("book")
-    return None, None, None
+    return None, None, None  # always return a 3-tuple
 
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
@@ -265,24 +261,28 @@ def league_summary(league: str):
 
         # ---------- MOVEMENT + SNAPSHOTS ----------
         for team, line in best["spread"].items():
-            previous = get_previous_snapshot(game_id, "spread", team)
-            line["note"] = compute_movement(line, previous, "spread")
-            save_snapshot(game_id, "spread", team, line)
+            previous = get_previous_snapshot(supabase, game_id, "spread", team)
+            movement = compute_movement(line, previous, "spread")
+            line["note"] = movement
+            save_snapshot(supabase, game_id, "spread", team, line)
 
         for team, line in best["moneyline"].items():
-            previous = get_previous_snapshot(game_id, "moneyline", team)
-            line["note"] = compute_movement(line, previous, "moneyline")
-            save_snapshot(game_id, "moneyline", team, line)
+            previous = get_previous_snapshot(supabase, game_id, "moneyline", team)
+            movement = compute_movement(line, previous, "moneyline")
+            line["note"] = movement
+            save_snapshot(supabase, game_id, "moneyline", team, line)
 
         if best["total"]["over"]:
-            previous = get_previous_snapshot(game_id, "total", "Over")
-            best["total"]["over"]["note"] = compute_movement(best["total"]["over"], previous, "total")
-            save_snapshot(game_id, "total", "Over", best["total"]["over"])
+            previous = get_previous_snapshot(supabase, game_id, "total", "Over")
+            movement = compute_movement(best["total"]["over"], previous, "total")
+            best["total"]["over"]["note"] = movement
+            save_snapshot(supabase, game_id, "total", "Over", best["total"]["over"])
 
         if best["total"]["under"]:
-            previous = get_previous_snapshot(game_id, "total", "Under")
-            best["total"]["under"]["note"] = compute_movement(best["total"]["under"], previous, "total")
-            save_snapshot(game_id, "total", "Under", best["total"]["under"])
+            previous = get_previous_snapshot(supabase, game_id, "total", "Under")
+            movement = compute_movement(best["total"]["under"], previous, "total")
+            best["total"]["under"]["note"] = movement
+            save_snapshot(supabase, game_id, "total", "Under", best["total"]["under"])
 
         summary.append({
             "game_id": game.get("id"),
