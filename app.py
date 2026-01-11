@@ -79,18 +79,22 @@ def get_previous_snapshot(game_id, market, side):
     try:
         response = (
             supabase.table("line_snapshots")
-            .select("point, price, book")
+            .select("point, price, book, timestamp")
             .eq("game_id", game_id)
             .eq("market", market)
             .eq("side", side)
             .order("timestamp", desc=True)
-            .range(1, 1)   # previous row (offset 1)
+            .limit(2)
             .execute()
         )
 
-        if response.data and len(response.data) > 0:
-            row = response.data[0]
-            return row["point"], row["price"], row["book"]
+        rows = response.data
+
+        # rows[0] = current snapshot (just inserted)
+        # rows[1] = true previous snapshot
+        if rows and len(rows) >= 2:
+            prev = rows[1]
+            return prev["point"], prev["price"], prev["book"]
 
     except Exception as e:
         print("Supabase fetch error:", e)
