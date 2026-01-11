@@ -1,23 +1,21 @@
 from fastapi import FastAPI
 import os
 import requests
-from statistics import mean
 from datetime import datetime
-from zoneinfo import ZoneInfo  # Python 3.9+
+from zoneinfo import ZoneInfo
 from supabase import create_client, Client
 
 app = FastAPI()
 
-# ---------- DATABASE (SUPABASE VERSION) ----------
-def get_supabase_client() -> Client:
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+# ---------- SUPABASE CLIENT ----------
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ---------- HELPERS ----------
 def save_snapshot(game_id, market, side, line):
     if not line:
         return
-    supabase = get_supabase_client()
     supabase.table("line_snapshots").insert({
         "game_id": game_id,
         "market": market,
@@ -29,10 +27,6 @@ def save_snapshot(game_id, market, side, line):
     }).execute()
 
 def get_previous_snapshot(game_id, market, side):
-    """
-    Fetch the previous snapshot (not the latest) to compute movement.
-    """
-    supabase = get_supabase_client()
     try:
         response = (
             supabase.table("line_snapshots")
@@ -46,11 +40,11 @@ def get_previous_snapshot(game_id, market, side):
         )
         rows = response.data
         if rows and len(rows) >= 2:
-            prev = rows[1]  # the previous snapshot
+            prev = rows[1]
             return prev["point"], prev["price"], prev["book"]
     except Exception as e:
         print("Supabase fetch error:", e)
-    return None, None, None  # always return a 3-tuple for compute_movement
+    return None, None, None
 
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
