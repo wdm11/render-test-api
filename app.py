@@ -76,20 +76,24 @@ def save_snapshot(game_id, market, side, line):
         print("Supabase save error:", e)
  
 def get_previous_snapshot(game_id, market, side):
+    supabase = get_supabase_client()
+
     response = (
         supabase.table("line_snapshots")
-        .select("point, price, book, id")
+        .select("point, price, book")
         .eq("game_id", game_id)
         .eq("market", market)
         .eq("side", side)
-        .order("id", desc=True)
+        .order("timestamp", desc=True)
         .limit(2)
         .execute()
     )
 
     rows = response.data
+
+    # Need at least 2 snapshots to detect movement
     if rows and len(rows) >= 2:
-        prev = rows[1]
+        prev = rows[1]   # second most recent
         return prev["point"], prev["price"], prev["book"]
 
     return None
