@@ -8,19 +8,6 @@ from supabase import create_client, Client
 
 app = FastAPI()
  
-@app.get("/test-insert")
-def test_insert():
-    supabase = get_supabase_client()
-    supabase.table("line_snapshots").insert({
-        "game_id": "TEST",
-        "market": "spread",
-        "side": "TEST",
-        "point": 1.5,
-        "price": -110,
-        "book": "DraftKings"
-    }).execute()
-    return {"status": "ok"}
- 
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
  
@@ -87,25 +74,28 @@ def save_snapshot(game_id, market, side, line):
         print("Supabase save error:", e)
  
 def get_previous_snapshot(game_id, market, side):
-    supabase = get_supabase_client()
+    try:
+        response = (
+            supabase.table("line_snapshots")
+            .select("point, price, book, timestamp")
+            .eq("game_id", game_id)
+            .eq("market", market)
+            .eq("side", side)
+            .order("timestamp", desc=True)
+            .limit(2)
+            .execute()
+        )
 
-    response = (
-        supabase.table("line_snapshots")
-        .select("point, price, book")
-        .eq("game_id", game_id)
-        .eq("market", market)
-        .eq("side", side)
-        .order("timestamp", desc=True)
-        .limit(2)
-        .execute()
-    )
+        rows = response.data
 
-    rows = response.data
+        # rows[0] = current snapshot (just inserted)
+        # rows[1] = true previous snapshot
+        if rows and len(rows) >= 2:
+            prev = rows[1]
+            return prev["point"], prev["price"], prev["book"]
 
-    # Need at least 2 snapshots to detect movement
-    if rows and len(rows) >= 2:
-        prev = rows[1]   # second most recent
-        return prev["point"], prev["price"], prev["book"]
+    except Exception as e:
+        print("Supabase fetch error:", e)
 
     return None
 
