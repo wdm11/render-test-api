@@ -69,25 +69,19 @@ def save_snapshot(game_id, market, side, line):
 def get_previous_snapshot(game_id, market, side):
     try:
         supabase = get_supabase_client()
-
-        response = (
-            supabase.table("line_snapshots")
-            .select("point, price, book")
-            .eq("game_id", game_id)
-            .eq("market", market)
-            .eq("side", side)
-            .order("id", desc=True)
-            .range(1, 1)   # <-- this is the key: true previous row
-            .execute()
-        )
+        response = supabase.rpc("get_previous_line", {
+            "p_game_id": game_id,
+            "p_market": market,
+            "p_side": side
+        }).execute()
 
         data = response.data
-        if data and len(data) == 1:
+        if data:
             row = data[0]
             return row["point"], row["price"], row["book"]
 
     except Exception as e:
-        print("Previous snapshot error:", e)
+        print("RPC history error:", e)
 
     return None, None, None
 
