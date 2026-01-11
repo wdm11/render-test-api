@@ -3,48 +3,8 @@ import os
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from supabase import create_client, Client
 
 app = FastAPI()
-
-# ---------- SUPABASE CLIENT ----------
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# ---------- HELPERS ----------
-def save_snapshot(game_id, market, side, line):
-    if not line:
-        return
-    supabase.table("line_snapshots").insert({
-        "game_id": game_id,
-        "market": market,
-        "side": side,
-        "point": line.get("point"),
-        "price": line.get("price"),
-        "book": line.get("book"),
-        "timestamp": datetime.utcnow().isoformat()
-    }).execute()
-
-def get_previous_snapshot(game_id, market, side):
-    try:
-        response = (
-            supabase.table("line_snapshots")
-            .select("point, price, book, timestamp")
-            .eq("game_id", game_id)
-            .eq("market", market)
-            .eq("side", side)
-            .order("timestamp", desc=True)
-            .limit(2)
-            .execute()
-        )
-        rows = response.data
-        if rows and len(rows) >= 2:
-            prev = rows[1]
-            return prev["point"], prev["price"], prev["book"]
-    except Exception as e:
-        print("Supabase fetch error:", e)
-    return None, None, None
 
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
@@ -85,38 +45,6 @@ def better_price(new_price, current_price):
         return True
     return False
 
-def compute_movement(current, previous, market):
-    prev_point, prev_price, prev_book = previous
-    point_move = 0
-    price_move = 0
-    book_move = False
-
-    if market in ("spread", "total"):
-        if current.get("point") is not None and prev_point is not None:
-            point_move = round(current["point"] - prev_point, 2)
-
-    if prev_price is not None and current.get("price") is not None:
-        price_move = current["price"] - prev_price
-
-    if prev_book is not None and current.get("book") is not None:
-        if current["book"] != prev_book:
-            book_move = True
-
-    if point_move == 0 and price_move == 0 and not book_move:
-        return "➖ No change"
-
-    emoji = "📈" if (point_move > 0 or price_move > 0) else "📉"
-    parts = []
-
-    if point_move != 0:
-        parts.append(f"{'+' if point_move > 0 else ''}{point_move} pts")
-    if price_move != 0:
-        parts.append(f"{'+' if price_move > 0 else ''}{price_move}¢")
-    if book_move:
-        parts.append(f"{prev_book} → {current['book']}")
-
-    return f"{emoji} " + " / ".join(parts)
-
 # ---------- ENDPOINT ----------
 @app.get("/league-summary")
 def league_summary(league: str):
@@ -139,7 +67,7 @@ def league_summary(league: str):
         )
         r.raise_for_status()
     except requests.RequestException as e:
-        return {"error": " Odds API error ", "details": str(e)}
+        return {"error": "Odds API error", "details": str(e)}
 
     games = r.json()
     summary = []
@@ -238,29 +166,6 @@ def league_summary(league: str):
                             if take:
                                 best["total"]["under"] = {"point": point, "price": price, "book": book_title, "deeplink": deeplink}
 
-        game_id = f"{home}__{away}__{game_time_utc}"
-
-        # ---------- MOVEMENT + SNAPSHOTS ----------
-        for team, line in best["spread"].items():
-            previous = get_previous_snapshot(game_id, "spread", team)
-            line["note"] = compute_movement(line, previous, "spread")
-            save_snapshot(game_id, "spread", team, line)
-
-        for team, line in best["moneyline"].items():
-            previous = get_previous_snapshot(game_id, "moneyline", team)
-            line["note"] = compute_movement(line, previous, "moneyline")
-            save_snapshot(game_id, "moneyline", team, line)
-
-        if best["total"]["over"]:
-            previous = get_previous_snapshot(game_id, "total", "Over")
-            best["total"]["over"]["note"] = compute_movement(best["total"]["over"], previous, "total")
-            save_snapshot(game_id, "total", "Over", best["total"]["over"])
-
-        if best["total"]["under"]:
-            previous = get_previous_snapshot(game_id, "total", "Under")
-            best["total"]["under"]["note"] = compute_movement(best["total"]["under"], previous, "total")
-            save_snapshot(game_id, "total", "Under", best["total"]["under"])
-
         summary.append({
             "game_id": game.get("id"),
             "teams": {"home": home, "away": away},
@@ -273,4 +178,3 @@ def league_summary(league: str):
         "generated_at": formatted_time,
         "games": summary
     }
-    
