@@ -4,29 +4,11 @@ import requests
 from statistics import mean
 from datetime import datetime
 from zoneinfo import ZoneInfo  # Python 3.9+
-import sqlite3
- 
+from supabase import create_client, Client
+
 app = FastAPI()
  
-# ---------- DATABASE ----------
-DB_PATH = "lines.db"
- 
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cursor = conn.cursor()
- 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS line_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id TEXT NOT NULL,
-    market TEXT NOT NULL,
-    side TEXT NOT NULL,
-    point REAL,
-    price INTEGER,
-    book TEXT,
-    timestamp TEXT
-)
-""")
-conn.commit()
+
  
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
@@ -55,6 +37,11 @@ ALLOWED_BOOKS = {
  
 BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
  
+# ---------- SUPABASE ----------
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 # ---------- HELPERS ----------
 def better_price(new_price, current_price):
     """
@@ -72,45 +59,43 @@ def better_price(new_price, current_price):
         return True
     return False
  
- 
 def save_snapshot(game_id, market, side, line):
     if not line:
         return
- 
-    cursor.execute(
-        """
-        INSERT INTO line_snapshots
-        (game_id, market, side, point, price, book, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            game_id,
-            market,
-            side,
-            line.get("point"),
-            line.get("price"),
-            line.get("book"),
-            datetime.utcnow().isoformat()
-        )
-    )
-    conn.commit()
- 
+
+    try:
+        supabase.table("line_snapshots").insert({
+            "game_id": game_id,
+            "market": market,
+            "side": side,
+            "point": line.get("point"),
+            "price": line.get("price"),
+            "book": line.get("book"),
+        }).execute()
+    except Exception as e:
+        print("Supabase save error:", e)
  
 def get_previous_snapshot(game_id, market, side):
-    cursor.execute(
-        """
-        SELECT point, price, book
-        FROM line_snapshots
-        WHERE game_id = ?
-          AND market = ?
-          AND side = ?
-        ORDER BY timestamp DESC
-        LIMIT 1 OFFSET 1
-        """,
-        (game_id, market, side)
-    )
-    return cursor.fetchone()
- 
+    try:
+        response = (
+            supabase.table("line_snapshots")
+            .select("point, price, book")
+            .eq("game_id", game_id)
+            .eq("market", market)
+            .eq("side", side)
+            .order("timestamp", desc=True)
+            .range(1, 1)   # previous row (offset 1)
+            .execute()
+        )
+
+        if response.data and len(response.data) > 0:
+            row = response.data[0]
+            return row["point"], row["price"], row["book"]
+
+    except Exception as e:
+        print("Supabase fetch error:", e)
+
+    return None
 
 def compute_movement(current, previous, market):
     if not current or not previous:
