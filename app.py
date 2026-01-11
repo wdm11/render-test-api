@@ -8,7 +8,18 @@ from supabase import create_client, Client
 
 app = FastAPI()
  
-
+@app.get("/test-insert")
+def test_insert():
+    supabase = get_supabase_client()
+    supabase.table("line_snapshots").insert({
+        "game_id": "TEST",
+        "market": "spread",
+        "side": "TEST",
+        "point": 1.5,
+        "price": -110,
+        "book": "DraftKings"
+    }).execute()
+    return {"status": "ok"}
  
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
