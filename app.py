@@ -26,22 +26,25 @@ def save_snapshot(supabase, game_id, market, side, line):
     }).execute()
 
 def get_previous_snapshot(supabase, game_id, market, side):
-    response = (
-        supabase.table("line_snapshots")
-        .select("point, price, book")
-        .eq("game_id", game_id)
-        .eq("market", market)
-        .eq("side", side)
-        .order("timestamp", desc=True)
-        .limit(1)
-        .execute()
-    )
-    data = response.data
-    if data and len(data) > 0:
-        prev = data[0]
-        return prev.get("point"), prev.get("price"), prev.get("book")
-    return None, None, None  # always return a 3-tuple
-
+    try:
+        response = (
+            supabase.table("line_snapshots")
+            .select("point, price, book, timestamp")
+            .eq("game_id", game_id)
+            .eq("market", market)
+            .eq("side", side)
+            .order("timestamp", desc=True)
+            .limit(1)
+            .execute()
+        )
+        data = response.data or []
+        if len(data) > 0:
+            prev = data[0]
+            return prev.get("point"), prev.get("price"), prev.get("book")
+    except Exception as e:
+        print(f"Supabase get_previous_snapshot error: {e}")
+    return None, None, None
+    
 # ---------- CONFIG ----------
 API_KEY = os.getenv("ODDS_API_KEY")
 
