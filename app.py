@@ -67,23 +67,28 @@ def save_snapshot(game_id, market, side, line):
         print("Supabase insert error:", e)
 
 def get_previous_snapshot(game_id, market, side):
-    try:
-        supabase = get_supabase_client()
-        response = supabase.rpc("get_previous_line", {
-            "p_game_id": game_id,
-            "p_market": market,
-            "p_side": side
-        }).execute()
+    supabase = get_supabase_client()
+    response = (
+        supabase.table("line_snapshots")
+        .select("point, price, book, timestamp")
+        .eq("game_id", game_id)
+        .eq("market", market)
+        .eq("side", side)
+        .order("timestamp", desc=True)
+        .limit(2)  # fetch the last two snapshots
+        .execute()
+    )
 
-        data = response.data
-        if data:
-            row = data[0]
-            return row["point"], row["price"], row["book"]
-
-    except Exception as e:
-        print("RPC history error:", e)
-
-    return None, None, None
+    data = response.data
+    if data and len(data) == 2:
+        # The second row is the previous snapshot
+        prev = data[1]
+        return prev.get("point"), prev.get("price"), prev.get("book")
+    elif data and len(data) == 1:
+        # Only one snapshot exists — no previous
+        return None, None, None
+    else:
+        return None, None, None
 
 def compute_movement(current, previous, market):
     prev_point, prev_price, prev_book = previous
