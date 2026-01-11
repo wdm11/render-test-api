@@ -279,3 +279,4 @@ def league_summary(league: str):
         "generated_at": formatted_time,
         "games": summary
     }
+    
