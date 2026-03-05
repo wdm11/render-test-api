@@ -23,15 +23,31 @@ SPORT_MAP = {
 
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
+# Match on BOOK KEY (not title)
 ALLOWED_BOOKS = {
-    "DraftKings": {"key": "draftkings", "deeplink": "https://sportsbook.draftkings.com"},
-    "FanDuel": {"key": "fanduel", "deeplink": "https://sportsbook.fanduel.com"},
-    "BetMGM": {"key": "betmgm", "deeplink": "shortcuts://run-shortcut?name=Open_BetMGM"},
-    "Caesars": {"key": "caesars", "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"},
-    "bet365": {"key": "bet365", "deeplink": "shortcuts://run-shortcut?name=Open_bet365"}
+    "draftkings": {
+        "title": "DraftKings",
+        "deeplink": "https://sportsbook.draftkings.com"
+    },
+    "fanduel": {
+        "title": "FanDuel",
+        "deeplink": "https://sportsbook.fanduel.com"
+    },
+    "betmgm": {
+        "title": "BetMGM",
+        "deeplink": "shortcuts://run-shortcut?name=Open_BetMGM"
+    },
+    "caesars": {
+        "title": "Caesars",
+        "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"
+    },
+    "bet365": {
+        "title": "bet365",
+        "deeplink": "shortcuts://run-shortcut?name=Open_bet365"
+    }
 }
 
-BOOK_PRIORITY = ["BetMGM", "DraftKings", "FanDuel", "Caesars", "bet365"]
+BOOK_PRIORITY = ["betmgm", "draftkings", "fanduel", "caesars", "bet365"]
 
 # ---------- HELPERS ----------
 def better_price(new_price, current_price):
@@ -90,14 +106,18 @@ def league_summary(league: str):
 
         # ---------- BUILD BEST LINES ----------
         for book in game.get("bookmakers", []):
-            book_title = book.get("title")
-            if book_title not in ALLOWED_BOOKS:
+            book_key = book.get("key")
+
+            if book_key not in ALLOWED_BOOKS:
                 continue
-            deeplink = ALLOWED_BOOKS[book_title]["deeplink"]
-            book_priority = BOOK_PRIORITY.index(book_title) if book_title in BOOK_PRIORITY else 999
+
+            book_title = ALLOWED_BOOKS[book_key]["title"]
+            deeplink = ALLOWED_BOOKS[book_key]["deeplink"]
+            book_priority = BOOK_PRIORITY.index(book_key)
 
             for market in book.get("markets", []):
                 key = market.get("key")
+
                 for outcome in market.get("outcomes", []):
                     team = outcome.get("name")
                     point = outcome.get("point")
@@ -107,6 +127,7 @@ def league_summary(league: str):
                     if key == "spreads":
                         current = best["spread"].get(team)
                         take = False
+
                         if not current:
                             take = True
                         elif point != current["point"]:
@@ -118,53 +139,84 @@ def league_summary(league: str):
                             if better_price(price, current["price"]):
                                 take = True
                             elif price == current["price"]:
-                                if book_priority < BOOK_PRIORITY.index(current["book"]):
+                                if book_priority < BOOK_PRIORITY.index(current["book_key"]):
                                     take = True
+
                         if take:
-                            best["spread"][team] = {"point": point, "price": price, "book": book_title, "deeplink": deeplink}
+                            best["spread"][team] = {
+                                "point": point,
+                                "price": price,
+                                "book": book_title,
+                                "book_key": book_key,
+                                "deeplink": deeplink
+                            }
 
                     # ---------- MONEYLINE ----------
                     elif key == "h2h":
                         current = best["moneyline"].get(team)
                         take = False
+
                         if not current:
                             take = True
                         elif better_price(price, current["price"]):
                             take = True
                         elif price == current["price"]:
-                            if book_priority < BOOK_PRIORITY.index(current["book"]):
+                            if book_priority < BOOK_PRIORITY.index(current["book_key"]):
                                 take = True
+
                         if take:
-                            best["moneyline"][team] = {"price": price, "book": book_title, "deeplink": deeplink}
+                            best["moneyline"][team] = {
+                                "price": price,
+                                "book": book_title,
+                                "book_key": book_key,
+                                "deeplink": deeplink
+                            }
 
                     # ---------- TOTALS ----------
                     elif key == "totals":
                         if team == "Over":
                             current = best["total"]["over"]
                             take = False
+
                             if not current or point < current["point"]:
                                 take = True
                             elif point == current["point"]:
                                 if better_price(price, current["price"]):
                                     take = True
                                 elif price == current["price"]:
-                                    if book_priority < BOOK_PRIORITY.index(current["book"]):
+                                    if book_priority < BOOK_PRIORITY.index(current["book_key"]):
                                         take = True
+
                             if take:
-                                best["total"]["over"] = {"point": point, "price": price, "book": book_title, "deeplink": deeplink}
+                                best["total"]["over"] = {
+                                    "point": point,
+                                    "price": price,
+                                    "book": book_title,
+                                    "book_key": book_key,
+                                    "deeplink": deeplink
+                                }
+
                         elif team == "Under":
                             current = best["total"]["under"]
                             take = False
+
                             if not current or point > current["point"]:
                                 take = True
                             elif point == current["point"]:
                                 if better_price(price, current["price"]):
                                     take = True
                                 elif price == current["price"]:
-                                    if book_priority < BOOK_PRIORITY.index(current["book"]):
+                                    if book_priority < BOOK_PRIORITY.index(current["book_key"]):
                                         take = True
+
                             if take:
-                                best["total"]["under"] = {"point": point, "price": price, "book": book_title, "deeplink": deeplink}
+                                best["total"]["under"] = {
+                                    "point": point,
+                                    "price": price,
+                                    "book": book_title,
+                                    "book_key": book_key,
+                                    "deeplink": deeplink
+                                }
 
         summary.append({
             "game_id": game.get("id"),
