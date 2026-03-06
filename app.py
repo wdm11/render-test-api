@@ -75,7 +75,7 @@ def league_summary(league: str):
             f"{BASE_URL}/{sport}/odds",
             params={
                 "apiKey": API_KEY,
-                "regions": "us",
+                "regions": "us","us2"
                 "markets": "spreads,h2h,totals",
                 "oddsFormat": "american"
             },
@@ -93,6 +93,14 @@ def league_summary(league: str):
     formatted_time = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
 
     for game in games:
+
+        print("---- NEW GAME ----")
+        print(game["home_team"], "vs", game["away_team"])
+
+        # DEBUG TEST
+        for book in game["bookmakers"]:
+            print(book["key"])
+
         best = {"spread": {}, "moneyline": {}, "total": {"over": None, "under": None}}
 
         home = game.get("home_team")
