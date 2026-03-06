@@ -75,7 +75,7 @@ def league_summary(league: str):
             f"{BASE_URL}/{sport}/odds",
             params={
                 "apiKey": API_KEY,
-                "regions": "us,us2"
+                "regions": "us,us2",
                 "markets": "spreads,h2h,totals",
                 "oddsFormat": "american"
             },
