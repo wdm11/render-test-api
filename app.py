@@ -36,21 +36,9 @@ ALLOWED_BOOKS = {
         "title": "BetMGM",
         "deeplink": "shortcuts://run-shortcut?name=Open_BetMGM"
     },
-    "caesars": {
-        "title": "Caesars",
-        "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"
-    },
-    "williamhill_us": {
-        "title": "Caesars",
-        "deeplink": "shortcuts://run-shortcut?name=Open_Caesers"
-    },
-    "bet365": {
-        "title": "bet365",
-        "deeplink": "shortcuts://run-shortcut?name=Open_bet365"
-    }
 }
 
-BOOK_PRIORITY = ["betmgm", "draftkings", "fanduel", "caesars", "williamhill_us", "bet365"]
+BOOK_PRIORITY = ["betmgm", "draftkings", "fanduel"]
 
 # ---------- HELPERS ----------
 def better_price(new_price, current_price):
@@ -80,9 +68,9 @@ def league_summary(league: str):
             f"{BASE_URL}/{sport}/odds",
             params={
                 "apiKey": API_KEY,
-                "regions": "us,us2,eu",
+                "regions": "us",
                 "markets": "spreads,h2h,totals",
-                "bookmakers": "draftkings,fanduel,betmgm,caesars,williamhill_us,bet365",
+                "bookmakers": "draftkings,fanduel,betmgm",
                 "oddsFormat": "american"
             },
             timeout=10
