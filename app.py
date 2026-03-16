@@ -82,7 +82,7 @@ def league_summary(league: str):
                 "apiKey": API_KEY,
                 "regions": "us,us2,eu",
                 "markets": "spreads,h2h,totals",
-                "bookmakers": "draftkings,fanduel,betmgm,caesars,bet365",
+                "bookmakers": "draftkings,fanduel,betmgm,caesars,williamhill_us,bet365",
                 "oddsFormat": "american"
             },
             timeout=10
