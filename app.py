@@ -23,7 +23,6 @@ SPORT_MAP = {
 
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
-# Match on BOOK KEY (not title)
 ALLOWED_BOOKS = {
     "draftkings": {
         "title": "DraftKings",
@@ -65,9 +64,11 @@ def better_price(new_price, current_price):
         return True
     return False
 
+
 # ---------- ENDPOINT ----------
 @app.get("/league-summary")
 def league_summary(league: str):
+
     league = league.upper()
     if league not in SPORT_MAP:
         return {"error": f"Invalid league '{league}'"}
@@ -87,6 +88,7 @@ def league_summary(league: str):
             timeout=10
         )
         r.raise_for_status()
+
     except requests.RequestException as e:
         return {"error": "Odds API error", "details": str(e)}
 
@@ -98,18 +100,30 @@ def league_summary(league: str):
     formatted_time = generated_at.strftime("%Y-%m-%d %I:%M %p %Z")
 
     for game in games:
-        best = {"spread": {}, "moneyline": {}, "total": {"over": None, "under": None}}
+
+        best = {
+            "spread": {},
+            "moneyline": {},
+            "total": {"over": None, "under": None}
+        }
+
         home = game.get("home_team")
         away = game.get("away_team")
+
         game_time_utc = game.get("commence_time")
+
         if game_time_utc:
-            game_dt = datetime.fromisoformat(game_time_utc.replace("Z", "+00:00")).astimezone(local_tz)
+            game_dt = datetime.fromisoformat(
+                game_time_utc.replace("Z", "+00:00")
+            ).astimezone(local_tz)
+
             formatted_game_time = game_dt.strftime("%Y-%m-%d %I:%M %p %Z")
         else:
             formatted_game_time = "Unknown"
 
         # ---------- BUILD BEST LINES ----------
         for book in game.get("bookmakers", []):
+
             book_key = book.get("key")
 
             if book_key not in ALLOWED_BOOKS:
@@ -117,32 +131,45 @@ def league_summary(league: str):
 
             book_title = ALLOWED_BOOKS[book_key]["title"]
             deeplink = ALLOWED_BOOKS[book_key]["deeplink"]
+
             book_priority = BOOK_PRIORITY.index(book_key)
 
             for market in book.get("markets", []):
+
                 key = market.get("key")
 
                 for outcome in market.get("outcomes", []):
+
                     team = outcome.get("name")
                     point = outcome.get("point")
                     price = outcome.get("price")
 
                     # ---------- SPREADS ----------
                     if key == "spreads":
+
                         current = best["spread"].get(team)
                         take = False
 
                         if not current:
                             take = True
-                        elif point != current["point"]:
-                            if point > 0 and current["point"] > 0 and point > current["point"]:
-                                take = True
-                            elif point < 0 and current["point"] < 0 and abs(point) < abs(current["point"]):
-                                take = True
+
                         else:
-                            if better_price(price, current["price"]):
-                                take = True
-                            elif price == current["price"]:
+
+                            current_point = current["point"]
+
+                            if team == home:
+                                if abs(point) < abs(current_point):
+                                    take = True
+                                elif point == current_point and better_price(price, current["price"]):
+                                    take = True
+
+                            else:
+                                if point > current_point:
+                                    take = True
+                                elif point == current_point and better_price(price, current["price"]):
+                                    take = True
+
+                            if not take and point == current_point and price == current["price"]:
                                 if book_priority < BOOK_PRIORITY.index(current["book_key"]):
                                     take = True
 
@@ -157,13 +184,16 @@ def league_summary(league: str):
 
                     # ---------- MONEYLINE ----------
                     elif key == "h2h":
+
                         current = best["moneyline"].get(team)
                         take = False
 
                         if not current:
                             take = True
+
                         elif better_price(price, current["price"]):
                             take = True
+
                         elif price == current["price"]:
                             if book_priority < BOOK_PRIORITY.index(current["book_key"]):
                                 take = True
@@ -178,18 +208,20 @@ def league_summary(league: str):
 
                     # ---------- TOTALS ----------
                     elif key == "totals":
+
                         if team == "Over":
+
                             current = best["total"]["over"]
                             take = False
 
-                            if not current or point < current["point"]:
+                            if not current:
                                 take = True
-                            elif point == current["point"]:
-                                if better_price(price, current["price"]):
+
+                            else:
+                                if point < current["point"]:
                                     take = True
-                                elif price == current["price"]:
-                                    if book_priority < BOOK_PRIORITY.index(current["book_key"]):
-                                        take = True
+                                elif point == current["point"] and better_price(price, current["price"]):
+                                    take = True
 
                             if take:
                                 best["total"]["over"] = {
@@ -201,17 +233,18 @@ def league_summary(league: str):
                                 }
 
                         elif team == "Under":
+
                             current = best["total"]["under"]
                             take = False
 
-                            if not current or point > current["point"]:
+                            if not current:
                                 take = True
-                            elif point == current["point"]:
-                                if better_price(price, current["price"]):
+
+                            else:
+                                if point > current["point"]:
                                     take = True
-                                elif price == current["price"]:
-                                    if book_priority < BOOK_PRIORITY.index(current["book_key"]):
-                                        take = True
+                                elif point == current["point"] and better_price(price, current["price"]):
+                                    take = True
 
                             if take:
                                 best["total"]["under"] = {
@@ -224,7 +257,10 @@ def league_summary(league: str):
 
         summary.append({
             "game_id": game.get("id"),
-            "teams": {"home": home, "away": away},
+            "teams": {
+                "home": home,
+                "away": away
+            },
             "game_time": formatted_game_time,
             "best_lines": best
         })
