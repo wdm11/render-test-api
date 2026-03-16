@@ -93,6 +93,19 @@ def league_summary(league: str):
         return {"error": "Odds API error", "details": str(e)}
 
     games = r.json()
+    
+    for game in games:
+        print("\n----- GAME -----")
+        print(game["away_team"], "vs", game["home_team"])
+
+        for book in game.get("bookmakers", []):
+            print("BOOK:", book["key"])
+
+            for market in book.get("markets", []):
+                if market["key"] == "h2h":
+                    for outcome in market["outcomes"]:
+                        print(outcome["name"], outcome["price"])
+    
     summary = []
 
     local_tz = ZoneInfo("America/Chicago")
